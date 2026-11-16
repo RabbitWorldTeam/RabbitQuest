@@ -1,0 +1,28 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+group = 'com.tr4nce'
+version = mod_version
+base { archivesName = "${mod_id}-${minecraft_version}-neoforge" }
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = neo_version
+    runs {
+        client { client(); gameDirectory = file('run/client') }
+        server { server(); gameDirectory = file('run/server'); programArgument '--nogui' }
+    }
+    mods { rabbitquest { sourceSet sourceSets.main } }
+}
+
+tasks.named('processResources', ProcessResources) {
+    def metadata = [mod_id: mod_id, mod_name: mod_name, mod_version: mod_version,
+                    mod_license: mod_license, minecraft_version: minecraft_version,
+                    neo_version: neo_version]
+    inputs.properties(metadata)
+    filesMatching('META-INF/neoforge.mods.toml') { expand(metadata) }
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
