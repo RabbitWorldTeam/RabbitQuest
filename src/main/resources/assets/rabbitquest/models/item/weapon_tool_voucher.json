@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "rabbitquest:item/weapon_tool_voucher"
+  }
+}

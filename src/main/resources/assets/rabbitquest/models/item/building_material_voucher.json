@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "rabbitquest:item/building_material_voucher"
+  }
+}
