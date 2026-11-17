@@ -72,5 +72,11 @@
   "rabbitquest.shop.result.edit_conflict": "此条目已更新，请重新打开后再保存。",
   "key.rabbitquest.shop": "打开兔兔商店",
   "key.categories.rabbitquest": "RabbitQuest",
-  "rabbitquest.shop.result.sample_changed": "背包已变化，请重新选择物品。"
+  "rabbitquest.shop.result.sample_changed": "背包已变化，请重新选择物品。",
+  "rabbitquest.stats.totals": "%s 的统计：破坏方块 %s，击杀 %s，伤害 %s",
+  "rabbitquest.stats.block": "%s 破坏了 %s %s 次",
+  "rabbitquest.stats.entity": "%s：%s 击杀 %s，伤害 %s",
+  "rabbitquest.stats.denied": "没有权限查看其他玩家的统计。",
+  "rabbitquest.stats.player_not_found": "未知玩家：%s",
+  "rabbitquest.stats.storage": "统计存档暂不可用。"
 }

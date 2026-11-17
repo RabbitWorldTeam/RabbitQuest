@@ -72,5 +72,11 @@
   "rabbitquest.shop.result.edit_conflict": "This entry changed. Reopen it before saving.",
   "key.rabbitquest.shop": "Open RabbitQuest Shop",
   "key.categories.rabbitquest": "RabbitQuest",
-  "rabbitquest.shop.result.sample_changed": "Inventory changed. Select the item again."
+  "rabbitquest.shop.result.sample_changed": "Inventory changed. Select the item again.",
+  "rabbitquest.stats.totals": "Stats for %s: %s blocks broken, %s kills, %s damage",
+  "rabbitquest.stats.block": "%s broke %s %s times",
+  "rabbitquest.stats.entity": "%s: %s kills %s, damage %s",
+  "rabbitquest.stats.denied": "You do not have permission to view another player's statistics.",
+  "rabbitquest.stats.player_not_found": "Unknown player: %s",
+  "rabbitquest.stats.storage": "Statistics data is unavailable."
 }
