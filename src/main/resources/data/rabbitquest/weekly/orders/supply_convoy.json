@@ -1,0 +1,28 @@
+{
+  "id": "rabbitquest:supply_convoy",
+  "name": "Supply convoy",
+  "nameKey": "rabbitquest.weekly.order.supply_convoy.name",
+  "description": "Keep the depot stocked for the coming week.",
+  "descriptionKey": "rabbitquest.weekly.order.supply_convoy.description",
+  "icon": "minecraft:chest",
+  "order": 10,
+  "enabled": false,
+  "task": "rabbitquest:gather_logs",
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "rabbitquest:building_material_voucher",
+        "count": 1
+      },
+      {
+        "item": "rabbitquest:weapon_tool_voucher",
+        "count": 1
+      },
+      {
+        "item": "minecraft:emerald",
+        "count": 8
+      }
+    ]
+  }
+}

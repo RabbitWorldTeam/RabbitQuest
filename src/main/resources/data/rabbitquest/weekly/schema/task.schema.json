@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rabbitquest.invalid/schema/weekly-task.schema.json",
+  "title": "RabbitQuest weekly task definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "icon", "targets"],
+  "properties": {
+    "id": { "$ref": "#/$defs/resourceId" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "nameKey": { "type": "string" },
+    "description": { "type": "string" },
+    "descriptionKey": { "type": "string" },
+    "icon": { "$ref": "#/$defs/resourceId" },
+    "order": { "type": "integer" },
+    "enabled": { "type": "boolean", "default": false },
+    "reward": { "$ref": "#/$defs/reward" },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/target" }
+    }
+  },
+  "$defs": {
+    "resourceId": {
+      "type": "string",
+      "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$"
+    },
+    "rewardItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item", "count"],
+      "properties": {
+        "item": { "$ref": "#/$defs/resourceId" },
+        "count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "rewardGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "weight": { "type": "integer", "minimum": 1, "default": 1 },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rewardItem" }
+        }
+      }
+    },
+    "fixedReward": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "items"],
+      "properties": {
+        "mode": { "const": "FIXED" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rewardItem" }
+        }
+      }
+    },
+    "groupReward": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "groups"],
+      "properties": {
+        "mode": { "enum": ["CHOICE", "WEIGHTED"] },
+        "groups": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rewardGroup" }
+        }
+      }
+    },
+    "reward": {
+      "oneOf": [
+        { "$ref": "#/$defs/fixedReward" },
+        { "$ref": "#/$defs/groupReward" }
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "amount"],
+      "properties": {
+        "id": { "$ref": "#/$defs/resourceId" },
+        "kind": {
+          "type": "string",
+          "enum": ["DELIVER", "HARVEST", "KILL", "DAMAGE", "ARRIVAL", "CUSTOM"]
+        },
+        "resource": { "$ref": "#/$defs/resourceId" },
+        "amount": { "type": "integer", "minimum": 1 },
+        "dimension": { "$ref": "#/$defs/resourceId" },
+        "region": { "$ref": "#/$defs/region" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "DELIVER" } }, "required": ["kind"] },
+          "then": { "required": ["resource"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "ARRIVAL" } }, "required": ["kind"] },
+          "then": { "properties": { "amount": { "const": 1 } } }
+        }
+      ]
+    },
+    "region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "number" },
+            { "type": "number" },
+            { "type": "number" }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "max": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "number" },
+            { "type": "number" },
+            { "type": "number" }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        }
+      }
+    }
+  }
+}

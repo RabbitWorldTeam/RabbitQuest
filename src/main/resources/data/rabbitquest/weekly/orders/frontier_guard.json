@@ -1,0 +1,38 @@
+{
+  "id": "rabbitquest:frontier_guard",
+  "name": "Frontier guard",
+  "nameKey": "rabbitquest.weekly.order.frontier_guard.name",
+  "description": "Patrol the frontier and report back.",
+  "descriptionKey": "rabbitquest.weekly.order.frontier_guard.description",
+  "icon": "minecraft:shield",
+  "order": 20,
+  "enabled": false,
+  "task": "rabbitquest:frontier_patrol",
+  "reward": {
+    "mode": "WEIGHTED",
+    "groups": [
+      {
+        "weight": 3,
+        "items": [
+          {
+            "item": "rabbitquest:weapon_tool_voucher",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "weight": 1,
+        "items": [
+          {
+            "item": "rabbitquest:building_material_voucher",
+            "count": 1
+          },
+          {
+            "item": "minecraft:gold_ingot",
+            "count": 4
+          }
+        ]
+      }
+    ]
+  }
+}

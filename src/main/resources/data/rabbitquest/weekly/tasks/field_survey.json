@@ -1,0 +1,27 @@
+{
+  "id": "rabbitquest:field_survey",
+  "name": "Field survey",
+  "nameKey": "rabbitquest.weekly.task.field_survey.name",
+  "description": "Survey the frontier for the cartographers.",
+  "descriptionKey": "rabbitquest.weekly.task.field_survey.description",
+  "icon": "minecraft:map",
+  "order": 30,
+  "enabled": false,
+  "targets": [
+    {
+      "id": "rabbitquest:survey_frontier",
+      "kind": "ARRIVAL",
+      "amount": 1,
+      "dimension": "minecraft:overworld"
+    }
+  ],
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "minecraft:emerald",
+        "count": 4
+      }
+    ]
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rabbitquest.invalid/schema/weekly-order.schema.json",
+  "title": "RabbitQuest engineering order definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "icon", "task", "reward"],
+  "properties": {
+    "id": { "$ref": "#/$defs/resourceId" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "nameKey": { "type": "string" },
+    "description": { "type": "string" },
+    "descriptionKey": { "type": "string" },
+    "icon": { "$ref": "#/$defs/resourceId" },
+    "order": { "type": "integer" },
+    "enabled": { "type": "boolean", "default": false },
+    "task": { "$ref": "#/$defs/resourceId" },
+    "reward": {
+      "oneOf": [
+        { "$ref": "#/$defs/fixedReward" },
+        { "$ref": "#/$defs/groupReward" }
+      ]
+    }
+  },
+  "$defs": {
+    "resourceId": {
+      "type": "string",
+      "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$"
+    },
+    "rewardItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item", "count"],
+      "properties": {
+        "item": { "$ref": "#/$defs/resourceId" },
+        "count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "rewardGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "weight": { "type": "integer", "minimum": 1, "default": 1 },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rewardItem" }
+        }
+      }
+    },
+    "fixedReward": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "items"],
+      "properties": {
+        "mode": { "const": "FIXED" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rewardItem" }
+        }
+      }
+    },
+    "groupReward": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "groups"],
+      "properties": {
+        "mode": { "enum": ["CHOICE", "WEIGHTED"] },
+        "groups": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rewardGroup" }
+        }
+      }
+    }
+  }
+}

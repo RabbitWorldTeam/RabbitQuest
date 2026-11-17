@@ -1,0 +1,25 @@
+{
+  "id": "rabbitquest:gather_logs",
+  "name": "Gather logs",
+  "nameKey": "rabbitquest.weekly.task.gather_logs.name",
+  "description": "Deliver oak logs to the engineering depot.",
+  "descriptionKey": "rabbitquest.weekly.task.gather_logs.description",
+  "icon": "minecraft:oak_log",
+  "order": 10,
+  "enabled": false,
+  "targets": [
+    {
+      "id": "rabbitquest:collect_oak",
+      "kind": "HARVEST",
+      "resource": "minecraft:oak_log",
+      "amount": 16,
+      "dimension": "minecraft:overworld"
+    },
+    {
+      "id": "rabbitquest:deliver_oak",
+      "kind": "DELIVER",
+      "resource": "minecraft:oak_log",
+      "amount": 8
+    }
+  ]
+}

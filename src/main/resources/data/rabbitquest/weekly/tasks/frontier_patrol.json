@@ -1,0 +1,25 @@
+{
+  "id": "rabbitquest:frontier_patrol",
+  "name": "Frontier patrol",
+  "nameKey": "rabbitquest.weekly.task.frontier_patrol.name",
+  "description": "Clear the undead and scout the Nether.",
+  "descriptionKey": "rabbitquest.weekly.task.frontier_patrol.description",
+  "icon": "minecraft:iron_sword",
+  "order": 20,
+  "enabled": false,
+  "targets": [
+    {
+      "id": "rabbitquest:defeat_zombies",
+      "kind": "KILL",
+      "resource": "minecraft:zombie",
+      "amount": 10,
+      "dimension": "minecraft:overworld"
+    },
+    {
+      "id": "rabbitquest:scout_nether",
+      "kind": "ARRIVAL",
+      "amount": 1,
+      "dimension": "minecraft:the_nether"
+    }
+  ]
+}

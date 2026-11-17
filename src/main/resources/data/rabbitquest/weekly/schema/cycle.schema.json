@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rabbitquest.invalid/schema/weekly-cycle.schema.json",
+  "title": "RabbitQuest weekly cycle",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "zone": { "type": "string", "default": "Asia/Hong_Kong" },
+    "day": {
+      "type": "string",
+      "enum": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"],
+      "default": "MONDAY"
+    },
+    "time": {
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$",
+      "default": "04:00"
+    }
+  }
+}

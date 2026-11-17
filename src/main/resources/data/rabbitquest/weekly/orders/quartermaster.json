@@ -1,0 +1,32 @@
+{
+  "id": "rabbitquest:quartermaster",
+  "name": "Quartermaster's pick",
+  "nameKey": "rabbitquest.weekly.order.quartermaster.name",
+  "description": "Choose one voucher from the depot.",
+  "descriptionKey": "rabbitquest.weekly.order.quartermaster.description",
+  "icon": "minecraft:barrel",
+  "order": 30,
+  "enabled": false,
+  "task": "rabbitquest:gather_logs",
+  "reward": {
+    "mode": "CHOICE",
+    "groups": [
+      {
+        "items": [
+          {
+            "item": "rabbitquest:building_material_voucher",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "items": [
+          {
+            "item": "rabbitquest:weapon_tool_voucher",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  }
+}
