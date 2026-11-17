@@ -3,6 +3,9 @@ package com.tr4nce.rabbitquest.weekly;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.tr4nce.rabbitquest.network.WeeklyNetwork;
+import com.tr4nce.rabbitquest.storage.InventorySnapshot;
+import com.tr4nce.rabbitquest.storage.RecoveryService;
+import com.tr4nce.rabbitquest.storage.TransactionJournal;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.nbt.CompoundTag;
@@ -45,6 +48,31 @@ public final class WeeklyService {
 
     private static volatile Runtime runtime;
     private static volatile String configError;
+    private static volatile long definitionVersion = 1L;
+
+    public static WeeklyDefinitions activeDefinitions() {
+        Runtime current = runtime;
+        return current == null ? null : current.definitions();
+    }
+
+    public static void applyReload(WeeklyDefinitions next, long nextVersion) {
+        Runtime current = runtime;
+        if (current == null || next == null) {
+            return;
+        }
+        WeeklyCycle.activate(next.cycle());
+        Instant now = Instant.now();
+        LocalDate week = next.cycle().start(now);
+        current.data().ensureAnchor(week.toString());
+        WeeklyEngine.materializeOrder(next, current.data(), week);
+        WeeklyEngine.reconcileThresholds(next, current.data(), week, now.toEpochMilli());
+        runtime = new Runtime(current.server(), next, current.data());
+        definitionVersion = nextVersion;
+        configError = null;
+        for (ServerPlayer player : current.server().getPlayerList().getPlayers()) {
+            send(player, false, "", "");
+        }
+    }
 
     private WeeklyService() {}
 
@@ -150,6 +178,11 @@ public final class WeeklyService {
             sendError(player, request.getBoolean("open"), isRequestId(requestId) ? requestId : "");
             return;
         }
+        if (!action.equals("open") && request.contains("definitionVersion")
+                && request.getLong("definitionVersion") != definitionVersion) {
+            send(player, false, RESULT_PREFIX + "stale", isRequestId(requestId) ? requestId : "");
+            return;
+        }
         switch (action) {
             case "open" -> send(player, true, "", isRequestId(requestId) ? requestId : "");
             case "claim" -> claim(current, player, request, requestId);
@@ -232,10 +265,25 @@ public final class WeeklyService {
             return;
         }
         WeeklyEngine.reconcile(current.data(), player.getUUID(), now);
+        TransactionJournal wal = RecoveryService.journal();
+        String beforeHash = wal == null ? ""
+                : InventorySnapshot.fingerprint(player.getInventory().items, player.registryAccess());
         WeeklyEngine.ClaimResult result = WeeklyEngine.claim(current.data(), player.getUUID(), current.definitions(),
                 now, requestId, cycle.toString(), task, order, request.getInt("selection"),
                 player.getInventory().items, System.currentTimeMillis());
         if (result.outcome().equals("ok")) {
+            if (wal != null) {
+                CompoundTag payload = new CompoundTag();
+                payload.putString("cycle", cycle.toString());
+                payload.putString("task", task.toString());
+                payload.put("taskTag", current.data().task(player.getUUID(), cycle.toString(), task).copy());
+                String afterHash = InventorySnapshot.fingerprint(
+                        player.getInventory().items, player.registryAccess());
+                wal.begin(requestId, TransactionJournal.Domain.WEEKLY, "CLAIM", player.getUUID(),
+                        beforeHash, afterHash,
+                        InventorySnapshot.saveSlots(player.getInventory().items, player.registryAccess()), payload);
+                wal.markCommitted(requestId);
+            }
             player.getInventory().setChanged();
             player.containerMenu.broadcastChanges();
         }
@@ -255,11 +303,26 @@ public final class WeeklyService {
             return;
         }
         LocalDate week = current.definitions().cycle().start(Instant.now());
+        TransactionJournal wal = RecoveryService.journal();
+        String beforeHash = wal == null ? ""
+                : InventorySnapshot.fingerprint(player.getInventory().items, player.registryAccess());
         WeeklyEngine.DeliverResult result = WeeklyEngine.deliver(current.data(), player.getUUID(),
                 current.definitions(), week, requestId, request.getString("cycle"), task, order, target,
                 request.getInt("amount"), player.level().dimension().location(), player.position(),
                 player.getInventory().items, System.currentTimeMillis());
         if (result.outcome().equals("ok")) {
+            if (wal != null) {
+                CompoundTag payload = new CompoundTag();
+                payload.putString("cycle", week.toString());
+                payload.putString("task", task.toString());
+                payload.put("taskTag", current.data().task(player.getUUID(), week.toString(), task).copy());
+                String afterHash = InventorySnapshot.fingerprint(
+                        player.getInventory().items, player.registryAccess());
+                wal.begin(requestId, TransactionJournal.Domain.WEEKLY, "DELIVER", player.getUUID(),
+                        beforeHash, afterHash,
+                        InventorySnapshot.saveSlots(player.getInventory().items, player.registryAccess()), payload);
+                wal.markCommitted(requestId);
+            }
             player.getInventory().setChanged();
             player.containerMenu.broadcastChanges();
         }
@@ -300,6 +363,7 @@ public final class WeeklyService {
 
         CompoundTag snapshot = new CompoundTag();
         snapshot.putString("type", "weekly_snapshot");
+        snapshot.putLong("definitionVersion", definitionVersion);
         snapshot.putBoolean("open", open);
         snapshot.putBoolean("admin", adminView);
         snapshot.putBoolean("adminView", adminView);
@@ -543,6 +607,38 @@ public final class WeeklyService {
         } catch (IllegalArgumentException ignored) {
             return null;
         }
+    }
+
+    public static RecoveryService.DomainHandler recoveryHandler(MinecraftServer server) {
+        return recoveryHandler(WeeklySavedData.get(server));
+    }
+
+    public static RecoveryService.DomainHandler recoveryHandler(WeeklySavedData data) {
+        return new RecoveryService.DomainHandler() {
+            @Override
+            public boolean isApplied(UUID playerId, String txId) {
+                return data != null && data.receipt(playerId, txId) != null;
+            }
+
+            @Override
+            public boolean replayWorld(UUID playerId, String txId, String action, CompoundTag payload,
+                                       net.minecraft.core.HolderLookup.Provider registries) {
+                if (data == null) {
+                    return false;
+                }
+                if (data.receipt(playerId, txId) != null) {
+                    return true;
+                }
+                ResourceLocation taskId = ResourceLocation.tryParse(payload.getString("task"));
+                String cycle = payload.getString("cycle");
+                if (taskId == null || cycle.isEmpty()) {
+                    return false;
+                }
+                data.putTask(playerId, cycle, taskId, payload.getCompound("taskTag").copy());
+                data.putReceipt(playerId, txId, "ok");
+                return true;
+            }
+        };
     }
 
     private static boolean isRequestId(String value) {

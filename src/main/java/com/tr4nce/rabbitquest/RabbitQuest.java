@@ -1,5 +1,6 @@
 package com.tr4nce.rabbitquest;
 
+import com.tr4nce.rabbitquest.config.ReloadService;
 import com.tr4nce.rabbitquest.event.EventService;
 import com.tr4nce.rabbitquest.item.VoucherItems;
 import com.tr4nce.rabbitquest.network.EventNetwork;
@@ -8,6 +9,7 @@ import com.tr4nce.rabbitquest.network.WeeklyNetwork;
 import com.tr4nce.rabbitquest.shop.ShopService;
 import com.tr4nce.rabbitquest.stats.Action;
 import com.tr4nce.rabbitquest.stats.StatsService;
+import com.tr4nce.rabbitquest.storage.RecoveryService;
 import com.tr4nce.rabbitquest.weekly.TargetKind;
 import com.tr4nce.rabbitquest.weekly.WeeklyService;
 import net.minecraft.world.phys.Vec3;
@@ -26,6 +28,9 @@ public final class RabbitQuest {
         modEventBus.addListener(EventNetwork::register);
         StatsService.register();
         StatsService.setEventSink(RabbitQuest::forwardStat);
+        NeoForge.EVENT_BUS.addListener(RecoveryService::serverStarted);
+        NeoForge.EVENT_BUS.addListener(RecoveryService::serverStopped);
+        NeoForge.EVENT_BUS.addListener(RecoveryService::playerLoggedIn);
         NeoForge.EVENT_BUS.addListener(ShopService::registerCommands);
         NeoForge.EVENT_BUS.addListener(ShopService::playerLoggedIn);
         NeoForge.EVENT_BUS.addListener(WeeklyService::registerCommands);
@@ -38,6 +43,7 @@ public final class RabbitQuest {
         NeoForge.EVENT_BUS.addListener(EventService::serverStarted);
         NeoForge.EVENT_BUS.addListener(EventService::serverStopped);
         NeoForge.EVENT_BUS.addListener(EventService::playerTick);
+        NeoForge.EVENT_BUS.addListener(ReloadService::registerCommands);
     }
 
     private static void forwardStat(Action action) {

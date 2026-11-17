@@ -617,6 +617,25 @@ final class WeeklyEngine {
         return removed;
     }
 
+    static void reconcileThresholds(WeeklyDefinitions definitions, WeeklySavedData data, LocalDate currentWeek,
+                                    long now) {
+        List<ActiveTask> active = activeTasks(definitions, data, currentWeek);
+        for (UUID player : data.playerIds()) {
+            for (ActiveTask candidate : active) {
+                CompoundTag taskTag = data.task(player, currentWeek.toString(), candidate.task().id());
+                if (taskTag.isEmpty() || !usable(taskTag, currentWeek, candidate)) {
+                    continue;
+                }
+                CompoundTag progress = taskTag.getCompound("progress");
+                if (complete(candidate.task(), progress)) {
+                    freezeReward(taskTag, candidate.reward(), player, currentWeek,
+                            candidate.task().id(), candidate.token(), now);
+                    data.putTask(player, currentWeek.toString(), candidate.task().id(), taskTag);
+                }
+            }
+        }
+    }
+
     static boolean isClaimable(CompoundTag task, LocalDate current) {
         if (task.getBoolean("expired") || !task.getBoolean("completed") || task.getBoolean("claimed")) {
             return false;

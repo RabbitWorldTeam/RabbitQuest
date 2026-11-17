@@ -360,6 +360,7 @@ final class EventScreen extends Screen {
         CompoundTag request = new CompoundTag();
         request.putString("action", action);
         request.putString("requestId", UUID.randomUUID().toString());
+        request.putLong("definitionVersion", snapshot.getLong("definitionVersion"));
         return request;
     }
 

@@ -24,7 +24,7 @@ import java.util.Map;
  * Immutable weekly configuration loaded once per server start. Invalid definitions abort the
  * whole load so a partially enabled rotation never runs.
  */
-final class WeeklyDefinitions {
+public final class WeeklyDefinitions {
     private static final String CYCLE_PATH = "weekly/cycle.json";
     private static final String TASK_PREFIX = "weekly/tasks";
     private static final String ORDER_PREFIX = "weekly/orders";
@@ -34,8 +34,8 @@ final class WeeklyDefinitions {
     private final Map<ResourceLocation, EngineeringOrder> orders;
     private final List<EngineeringOrder> enabledOrders;
 
-    WeeklyDefinitions(WeeklyCycle cycle, Collection<WeeklyTaskDefinition> tasks,
-                      Collection<EngineeringOrder> orders) {
+    public WeeklyDefinitions(WeeklyCycle cycle, Collection<WeeklyTaskDefinition> tasks,
+                             Collection<EngineeringOrder> orders) {
         this.cycle = cycle;
         Map<ResourceLocation, WeeklyTaskDefinition> taskMap = new LinkedHashMap<>();
         for (WeeklyTaskDefinition task : tasks) {
@@ -64,32 +64,32 @@ final class WeeklyDefinitions {
                 .toList();
     }
 
-    WeeklyCycle cycle() {
+    public WeeklyCycle cycle() {
         return cycle;
     }
 
-    Map<ResourceLocation, WeeklyTaskDefinition> tasks() {
+    public Map<ResourceLocation, WeeklyTaskDefinition> tasks() {
         return tasks;
     }
 
-    Map<ResourceLocation, EngineeringOrder> orders() {
+    public Map<ResourceLocation, EngineeringOrder> orders() {
         return orders;
     }
 
-    WeeklyTaskDefinition task(ResourceLocation id) {
+    public WeeklyTaskDefinition task(ResourceLocation id) {
         return tasks.get(id);
     }
 
-    EngineeringOrder order(ResourceLocation id) {
+    public EngineeringOrder order(ResourceLocation id) {
         return orders.get(id);
     }
 
-    List<EngineeringOrder> enabledOrders() {
+    public List<EngineeringOrder> enabledOrders() {
         return enabledOrders;
     }
 
     /** Enabled tasks that carry their own reward and therefore auto-open without an order. */
-    List<WeeklyTaskDefinition> ordinaryTasks() {
+    public List<WeeklyTaskDefinition> ordinaryTasks() {
         return tasks.values().stream()
                 .filter(task -> task.enabled() && task.reward() != null)
                 .sorted(Comparator.comparingInt(WeeklyTaskDefinition::order)
@@ -97,7 +97,7 @@ final class WeeklyDefinitions {
                 .toList();
     }
 
-    static WeeklyDefinitions load(ResourceManager manager) {
+    public static WeeklyDefinitions load(ResourceManager manager) {
         WeeklyCycle cycle = readCycle(manager);
         Map<String, String> tasks = readFolder(manager, TASK_PREFIX);
         Map<String, String> orders = readFolder(manager, ORDER_PREFIX);
@@ -107,7 +107,7 @@ final class WeeklyDefinitions {
     }
 
     /** Testable parser; keys are file names used in actionable error messages. */
-    static WeeklyDefinitions parse(WeeklyCycle cycle, Map<String, String> taskFiles, Map<String, String> orderFiles) {
+    public static WeeklyDefinitions parse(WeeklyCycle cycle, Map<String, String> taskFiles, Map<String, String> orderFiles) {
         List<WeeklyTaskDefinition> tasks = new ArrayList<>();
         for (var entry : taskFiles.entrySet()) {
             try {

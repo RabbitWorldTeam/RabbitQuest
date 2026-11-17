@@ -1,6 +1,9 @@
 package com.tr4nce.rabbitquest.shop;
 
 import com.tr4nce.rabbitquest.network.ShopNetwork;
+import com.tr4nce.rabbitquest.storage.InventorySnapshot;
+import com.tr4nce.rabbitquest.storage.RecoveryService;
+import com.tr4nce.rabbitquest.storage.TransactionJournal;
 import com.tr4nce.rabbitquest.weekly.WeeklyCycle;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.HolderLookup;
@@ -72,10 +75,22 @@ public final class ShopService {
         long revision = data.revision;
         String outcome = switch (action) {
             case "buy" -> {
+                TransactionJournal wal = RecoveryService.journal();
+                String beforeHash = wal == null ? ""
+                        : InventorySnapshot.fingerprint(player.getInventory().items, player.registryAccess());
                 int previousSales = data.transactions.size();
                 String result = buy(data, player.getStringUUID(), request, requestId, Instant.now(),
                         player.registryAccess(), player.getInventory().items);
                 if (previousSales != data.transactions.size()) {
+                    if (wal != null) {
+                        CompoundTag tx = data.transactions.getCompound(data.transactions.size() - 1);
+                        String afterHash = InventorySnapshot.fingerprint(
+                                player.getInventory().items, player.registryAccess());
+                        wal.begin(requestId, TransactionJournal.Domain.SHOP, "BUY", player.getUUID(),
+                                beforeHash, afterHash,
+                                InventorySnapshot.saveSlots(player.getInventory().items, player.registryAccess()), tx);
+                        wal.markCommitted(requestId);
+                    }
                     player.getInventory().setChanged();
                     player.containerMenu.broadcastChanges();
                 }
@@ -315,6 +330,59 @@ public final class ShopService {
         return category != null && category.getBoolean("visible") && product.getBoolean("enabled")
                 && (!product.contains("start") || second >= product.getLong("start"))
                 && (!product.contains("end") || second < product.getLong("end"));
+    }
+
+    public static RecoveryService.DomainHandler recoveryHandler(MinecraftServer server) {
+        return recoveryHandler(ShopSavedData.get(server));
+    }
+
+    public static RecoveryService.DomainHandler recoveryHandler(ShopSavedData data) {
+        return new RecoveryService.DomainHandler() {
+            @Override
+            public boolean isApplied(UUID playerId, String txId) {
+                if (data == null) {
+                    return false;
+                }
+                return data.player(playerId.toString()).getCompound("receipts").contains(txId, Tag.TAG_STRING);
+            }
+
+            @Override
+            public boolean replayWorld(UUID playerId, String txId, String action, CompoundTag payload,
+                                       HolderLookup.Provider registries) {
+                if (data == null || !"BUY".equals(action)) {
+                    return false;
+                }
+                String uuid = playerId.toString();
+                CompoundTag playerData = data.player(uuid);
+                CompoundTag receipts = playerData.getCompound("receipts");
+                if (receipts.contains(txId, Tag.TAG_STRING)) {
+                    return true;
+                }
+                String productId = payload.getString("product");
+                int amount = Math.max(1, payload.getInt("amount"));
+                long time = payload.getLong("time");
+                CompoundTag product = ShopSavedData.find(data.products, productId);
+                if (product != null && product.getInt("stock") >= 0) {
+                    product.putInt("stock", Math.max(0, product.getInt("stock") - amount));
+                    data.revision++;
+                }
+                String week = WeeklyCycle.startDate(Instant.ofEpochMilli(time)).toString();
+                CompoundTag purchases = playerData.getCompound("purchases");
+                CompoundTag counter = purchases.getCompound(productId);
+                int prevWeekly = counter.getString("week").equals(week) ? counter.getInt("weekly") : 0;
+                counter.putLong("total", counter.getLong("total") + amount);
+                counter.putString("week", week);
+                counter.putInt("weekly", (int) Math.min(Integer.MAX_VALUE, (long) prevWeekly + amount));
+                purchases.put(productId, counter);
+                playerData.put("purchases", purchases);
+                receipts.putString(txId, "ok");
+                playerData.put("receipts", receipts);
+                data.updatePlayer(uuid, playerData);
+                data.transactions.add(payload.copy());
+                data.setDirty();
+                return true;
+            }
+        };
     }
 
     private static boolean isRequestId(String value) {

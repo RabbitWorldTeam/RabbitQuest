@@ -194,5 +194,9 @@
   "rabbitquest.event.autumn_festival.step1.unlock": "活动开始后立即解锁。",
   "rabbitquest.event.autumn_festival.step2.name": "灯火守卫",
   "rabbitquest.event.autumn_festival.step2.description": "击败威胁庆典安全的僵尸。",
-  "rabbitquest.event.autumn_festival.step2.unlock": "完成第 1 步「庆典木材」。"
+  "rabbitquest.event.autumn_festival.step2.unlock": "完成第 1 步「庆典木材」。",
+  "rabbitquest.weekly.result.stale": "配置已更新，请核对最新内容后重试。",
+  "rabbitquest.event.result.stale": "活动配置已更新，请核对最新内容后重试。",
+  "rabbitquest.reload.ok": "RabbitQuest 配置热重载成功（版本 %s）。",
+  "rabbitquest.reload.failed": "RabbitQuest 配置热重载失败，已沿用上一版配置：%s"
 }

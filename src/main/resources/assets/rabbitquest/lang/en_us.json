@@ -194,5 +194,9 @@
   "rabbitquest.event.autumn_festival.step1.unlock": "Available immediately once the event starts.",
   "rabbitquest.event.autumn_festival.step2.name": "Lantern Guard",
   "rabbitquest.event.autumn_festival.step2.description": "Defeat zombies threatening the festival.",
-  "rabbitquest.event.autumn_festival.step2.unlock": "Complete Step 1: Festival Timber."
+  "rabbitquest.event.autumn_festival.step2.unlock": "Complete Step 1: Festival Timber.",
+  "rabbitquest.weekly.result.stale": "Definitions updated; review and try again.",
+  "rabbitquest.event.result.stale": "Event definitions updated; review and try again.",
+  "rabbitquest.reload.ok": "RabbitQuest configuration reloaded (version %s).",
+  "rabbitquest.reload.failed": "RabbitQuest reload rejected; kept previous definitions: %s"
 }

@@ -3,6 +3,9 @@ package com.tr4nce.rabbitquest.event;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.tr4nce.rabbitquest.network.EventNetwork;
+import com.tr4nce.rabbitquest.storage.InventorySnapshot;
+import com.tr4nce.rabbitquest.storage.RecoveryService;
+import com.tr4nce.rabbitquest.storage.TransactionJournal;
 import com.tr4nce.rabbitquest.weekly.TargetKind;
 import com.tr4nce.rabbitquest.weekly.WeeklyTarget;
 import net.minecraft.commands.CommandSourceStack;
@@ -42,6 +45,26 @@ public final class EventService {
 
     private static volatile Runtime runtime;
     private static volatile String configError;
+    private static volatile long definitionVersion = 1L;
+
+    public static EventDefinitions activeDefinitions() {
+        Runtime current = runtime;
+        return current == null ? null : current.definitions();
+    }
+
+    public static void applyReload(EventDefinitions next, long nextVersion) {
+        Runtime current = runtime;
+        if (current == null || next == null) {
+            return;
+        }
+        EventEngine.reconcileThresholds(next, current.data(), Instant.now());
+        runtime = new Runtime(current.server(), next, current.data());
+        definitionVersion = nextVersion;
+        configError = null;
+        for (ServerPlayer player : current.server().getPlayerList().getPlayers()) {
+            send(player, false, "", "");
+        }
+    }
 
     private EventService() {}
 
@@ -130,6 +153,11 @@ public final class EventService {
             sendError(player, request.getBoolean("open"), isRequestId(requestId) ? requestId : "");
             return;
         }
+        if (!action.equals("open") && request.contains("definitionVersion")
+                && request.getLong("definitionVersion") != definitionVersion) {
+            send(player, false, RESULT_PREFIX + "stale", isRequestId(requestId) ? requestId : "");
+            return;
+        }
         switch (action) {
             case "open" -> send(player, true, "", isRequestId(requestId) ? requestId : "");
             case "enroll" -> enroll(current, player, request, requestId);
@@ -209,11 +237,17 @@ public final class EventService {
         ResourceLocation eventId = ResourceLocation.tryParse(request.getString("event"));
         ResourceLocation stepId = ResourceLocation.tryParse(request.getString("step"));
         ResourceLocation targetId = ResourceLocation.tryParse(request.getString("target"));
+        TransactionJournal wal = RecoveryService.journal();
+        String beforeHash = wal == null ? ""
+                : InventorySnapshot.fingerprint(player.getInventory().items, player.registryAccess());
         EventEngine.DeliverResult result = EventEngine.deliver(current.data(), player.getUUID(),
                 current.definitions(), Instant.now(), requestId, eventId, stepId, targetId,
                 request.getInt("amount"), player.level().dimension().location(), player.position(),
                 player.getInventory().items);
         if (result.outcome().equals("ok")) {
+            if (wal != null && eventId != null) {
+                recordWal(wal, requestId, "DELIVER", player, beforeHash, eventId, current.data());
+            }
             player.getInventory().setChanged();
             player.containerMenu.broadcastChanges();
         }
@@ -227,10 +261,16 @@ public final class EventService {
         }
         ResourceLocation eventId = ResourceLocation.tryParse(request.getString("event"));
         ResourceLocation stepId = ResourceLocation.tryParse(request.getString("step"));
+        TransactionJournal wal = RecoveryService.journal();
+        String beforeHash = wal == null ? ""
+                : InventorySnapshot.fingerprint(player.getInventory().items, player.registryAccess());
         EventEngine.ActionResult result = EventEngine.claimStep(current.data(), player.getUUID(),
                 current.definitions(), Instant.now(), requestId, eventId, stepId,
                 request.getInt("selection"), player.getInventory().items);
         if (result.outcome().equals("ok")) {
+            if (wal != null && eventId != null) {
+                recordWal(wal, requestId, "CLAIM_STEP", player, beforeHash, eventId, current.data());
+            }
             player.getInventory().setChanged();
             player.containerMenu.broadcastChanges();
         }
@@ -243,10 +283,16 @@ public final class EventService {
             return;
         }
         ResourceLocation eventId = ResourceLocation.tryParse(request.getString("event"));
+        TransactionJournal wal = RecoveryService.journal();
+        String beforeHash = wal == null ? ""
+                : InventorySnapshot.fingerprint(player.getInventory().items, player.registryAccess());
         EventEngine.ActionResult result = EventEngine.claimCompletion(current.data(), player.getUUID(),
                 current.definitions(), Instant.now(), requestId, eventId,
                 request.getInt("selection"), player.getInventory().items);
         if (result.outcome().equals("ok")) {
+            if (wal != null && eventId != null) {
+                recordWal(wal, requestId, "CLAIM_COMPLETION", player, beforeHash, eventId, current.data());
+            }
             player.getInventory().setChanged();
             player.containerMenu.broadcastChanges();
         }
@@ -280,6 +326,7 @@ public final class EventService {
         Instant now = Instant.now();
         CompoundTag snapshot = new CompoundTag();
         snapshot.putString("type", "event_snapshot");
+        snapshot.putLong("definitionVersion", definitionVersion);
         snapshot.putBoolean("open", open);
         snapshot.putBoolean("adminView", adminView);
         snapshot.putString("player", playerName);
@@ -561,6 +608,48 @@ public final class EventService {
         } catch (IllegalArgumentException ignored) {
             return null;
         }
+    }
+
+    private static void recordWal(TransactionJournal wal, String requestId, String action, ServerPlayer player,
+                                  String beforeHash, ResourceLocation eventId, EventSavedData data) {
+        CompoundTag payload = new CompoundTag();
+        payload.putString("event", eventId.toString());
+        payload.put("eventTag", data.event(player.getUUID(), eventId).copy());
+        String afterHash = InventorySnapshot.fingerprint(player.getInventory().items, player.registryAccess());
+        wal.begin(requestId, TransactionJournal.Domain.EVENT, action, player.getUUID(), beforeHash, afterHash,
+                InventorySnapshot.saveSlots(player.getInventory().items, player.registryAccess()), payload);
+        wal.markCommitted(requestId);
+    }
+
+    public static RecoveryService.DomainHandler recoveryHandler(MinecraftServer server) {
+        return recoveryHandler(EventSavedData.get(server));
+    }
+
+    public static RecoveryService.DomainHandler recoveryHandler(EventSavedData data) {
+        return new RecoveryService.DomainHandler() {
+            @Override
+            public boolean isApplied(UUID playerId, String txId) {
+                return data != null && data.receipt(playerId, txId) != null;
+            }
+
+            @Override
+            public boolean replayWorld(UUID playerId, String txId, String action, CompoundTag payload,
+                                       net.minecraft.core.HolderLookup.Provider registries) {
+                if (data == null) {
+                    return false;
+                }
+                if (data.receipt(playerId, txId) != null) {
+                    return true;
+                }
+                ResourceLocation eventId = ResourceLocation.tryParse(payload.getString("event"));
+                if (eventId == null) {
+                    return false;
+                }
+                data.putEvent(playerId, eventId, payload.getCompound("eventTag").copy());
+                data.putReceipt(playerId, txId, "ok");
+                return true;
+            }
+        };
     }
 
     private static boolean isRequestId(String value) {

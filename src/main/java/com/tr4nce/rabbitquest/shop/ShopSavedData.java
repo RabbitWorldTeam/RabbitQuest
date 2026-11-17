@@ -12,7 +12,7 @@ import net.minecraft.world.level.storage.LevelResource;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-final class ShopSavedData extends SavedData {
+public final class ShopSavedData extends SavedData {
     private static final int FORMAT = 1;
     private static final String ID = "rabbitquest_shop";
     private static final Factory<ShopSavedData> FACTORY = new Factory<>(
@@ -24,7 +24,7 @@ final class ShopSavedData extends SavedData {
     final ListTag transactions;
     long revision;
 
-    ShopSavedData() {
+    public ShopSavedData() {
         this(new CompoundTag());
     }
 

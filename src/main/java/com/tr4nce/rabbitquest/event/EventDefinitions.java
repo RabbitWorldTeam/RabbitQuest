@@ -28,13 +28,13 @@ import java.util.Map;
  * Immutable timed event configuration loaded once per server start. Invalid definitions abort the
  * whole load so a partially enabled event set never runs.
  */
-final class EventDefinitions {
+public final class EventDefinitions {
     private static final String EVENT_PREFIX = "event/events";
 
     private final Map<ResourceLocation, TimedEventDefinition> events;
     private final List<TimedEventDefinition> enabledEvents;
 
-    EventDefinitions(Collection<TimedEventDefinition> events) {
+    public EventDefinitions(Collection<TimedEventDefinition> events) {
         Map<ResourceLocation, TimedEventDefinition> map = new LinkedHashMap<>();
         for (TimedEventDefinition event : events) {
             if (map.put(event.id(), event) != null) {
@@ -49,30 +49,30 @@ final class EventDefinitions {
                 .toList();
     }
 
-    Map<ResourceLocation, TimedEventDefinition> events() {
+    public Map<ResourceLocation, TimedEventDefinition> events() {
         return events;
     }
 
-    TimedEventDefinition event(ResourceLocation id) {
+    public TimedEventDefinition event(ResourceLocation id) {
         return events.get(id);
     }
 
-    List<TimedEventDefinition> enabledEvents() {
+    public List<TimedEventDefinition> enabledEvents() {
         return enabledEvents;
     }
 
-    List<TimedEventDefinition> visibleEvents(Instant now) {
+    public List<TimedEventDefinition> visibleEvents(Instant now) {
         return enabledEvents.stream().filter(event -> event.visibleAt(now)).toList();
     }
 
-    static EventDefinitions load(ResourceManager manager) {
+    public static EventDefinitions load(ResourceManager manager) {
         Map<String, String> files = readFolder(manager, EVENT_PREFIX);
         EventDefinitions definitions = parse(files);
         definitions.validateRegistry();
         return definitions;
     }
 
-    static EventDefinitions parse(Map<String, String> eventFiles) {
+    public static EventDefinitions parse(Map<String, String> eventFiles) {
         List<TimedEventDefinition> parsed = new ArrayList<>();
         for (var entry : eventFiles.entrySet()) {
             try {

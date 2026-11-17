@@ -28,7 +28,7 @@ public final class EventSavedData extends SavedData {
     private final CompoundTag players;
     private final ListTag audit;
 
-    EventSavedData() {
+    public EventSavedData() {
         this(new CompoundTag());
     }
 
@@ -77,6 +77,20 @@ public final class EventSavedData extends SavedData {
             players.put(key, tag);
         }
         return tag;
+    }
+
+    public java.util.List<UUID> playerIds() {
+        java.util.List<UUID> ids = new java.util.ArrayList<>();
+        for (String key : players.getAllKeys()) {
+            try {
+                ids.add(UUID.fromString(key));
+            } catch (IllegalArgumentException ignored) {}
+        }
+        return ids;
+    }
+
+    public CompoundTag playerEvents(UUID player) {
+        return player(player).getCompound("events");
     }
 
     public CompoundTag event(UUID player, ResourceLocation eventId) {

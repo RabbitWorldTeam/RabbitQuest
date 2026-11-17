@@ -32,7 +32,7 @@ public final class WeeklySavedData extends SavedData {
     private final ListTag audit;
     private String anchor;
 
-    WeeklySavedData() {
+    public WeeklySavedData() {
         this(new CompoundTag());
     }
 
@@ -57,7 +57,7 @@ public final class WeeklySavedData extends SavedData {
         return data;
     }
 
-    static WeeklySavedData load(CompoundTag tag, HolderLookup.Provider registries) {
+    public static WeeklySavedData load(CompoundTag tag, HolderLookup.Provider registries) {
         if (tag.getInt("format") != FORMAT) {
             throw new IllegalArgumentException("Unsupported RabbitQuest weekly format: " + tag.getInt("format"));
         }
@@ -141,7 +141,17 @@ public final class WeeklySavedData extends SavedData {
         }
     }
 
-    List<CompoundTag> tasks(UUID player) {
+    public List<UUID> playerIds() {
+        List<UUID> ids = new ArrayList<>();
+        for (String key : players.getAllKeys()) {
+            try {
+                ids.add(UUID.fromString(key));
+            } catch (IllegalArgumentException ignored) {}
+        }
+        return ids;
+    }
+
+    public List<CompoundTag> tasks(UUID player) {
         List<CompoundTag> result = new ArrayList<>();
         CompoundTag tasks = player(player).getCompound("tasks");
         for (String week : tasks.getAllKeys()) {

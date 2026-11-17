@@ -604,6 +604,43 @@ final class EventEngine {
         return removed;
     }
 
+    static void reconcileThresholds(EventDefinitions definitions, EventSavedData data, Instant now) {
+        for (UUID player : data.playerIds()) {
+            for (TimedEventDefinition event : definitions.enabledEvents()) {
+                if (event.phase(now) != TimedEventDefinition.Phase.ACTIVE) {
+                    continue;
+                }
+                CompoundTag eventTag = data.event(player, event.id());
+                if (!isParticipating(event, eventTag, now)) {
+                    continue;
+                }
+                CompoundTag steps = eventTag.getCompound("steps");
+                boolean changed = false;
+                for (int index = 0; index < event.steps().size(); index++) {
+                    if (!isStepUnlocked(event, eventTag, index, now)) {
+                        break;
+                    }
+                    EventStep step = event.steps().get(index);
+                    CompoundTag stepTag = steps.getCompound(step.id().toString());
+                    if (stepTag.isEmpty() || stepTag.getBoolean("completed")) {
+                        continue;
+                    }
+                    if (complete(step, stepTag.getCompound("progress"))) {
+                        completeStep(event, step, stepTag, eventTag, player, now);
+                        steps.put(step.id().toString(), stepTag);
+                        changed = true;
+                    } else {
+                        break;
+                    }
+                }
+                if (changed) {
+                    eventTag.put("steps", steps);
+                    data.putEvent(player, event.id(), eventTag);
+                }
+            }
+        }
+    }
+
     private static void audit(EventSavedData data, String actor, UUID player, ResourceLocation eventId,
                               String targetKey, String operation, CompoundTag previous) {
         CompoundTag entry = new CompoundTag();
