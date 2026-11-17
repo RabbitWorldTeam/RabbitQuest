@@ -1,0 +1,80 @@
+{
+  "id": "rabbitquest:autumn_festival_s1",
+  "name": "Autumn Harvest Festival",
+  "nameKey": "rabbitquest.event.autumn_festival.name",
+  "description": "Deliver timber and clear nearby threats to earn festival vouchers.",
+  "descriptionKey": "rabbitquest.event.autumn_festival.description",
+  "icon": "minecraft:pumpkin",
+  "order": 0,
+  "enabled": false,
+  "enrollmentRequired": false,
+  "previewAt": "2026-11-16T00:00:00+08:00",
+  "startAt": "2026-11-17T00:00:00+08:00",
+  "endAt": "2026-11-24T23:59:59+08:00",
+  "claimEndAt": "2026-11-26T23:59:59+08:00",
+  "steps": [
+    {
+      "id": "rabbitquest:autumn_step_1",
+      "name": "Festival Timber",
+      "nameKey": "rabbitquest.event.autumn_festival.step1.name",
+      "description": "Deliver oak logs to prepare the festival grounds.",
+      "descriptionKey": "rabbitquest.event.autumn_festival.step1.description",
+      "unlockCondition": "Available immediately once the event starts.",
+      "unlockConditionKey": "rabbitquest.event.autumn_festival.step1.unlock",
+      "lockedVisibility": "TITLE_AND_CONDITION",
+      "targets": [
+        {
+          "id": "rabbitquest:deliver_oak_logs",
+          "kind": "DELIVER",
+          "resource": "minecraft:oak_log",
+          "amount": 16
+        }
+      ],
+      "reward": {
+        "mode": "FIXED",
+        "items": [
+          { "item": "rabbitquest:building_material_voucher", "count": 1 }
+        ]
+      }
+    },
+    {
+      "id": "rabbitquest:autumn_step_2",
+      "name": "Lantern Guard",
+      "nameKey": "rabbitquest.event.autumn_festival.step2.name",
+      "description": "Defeat zombies threatening the festival.",
+      "descriptionKey": "rabbitquest.event.autumn_festival.step2.description",
+      "unlockCondition": "Complete Step 1: Festival Timber.",
+      "unlockConditionKey": "rabbitquest.event.autumn_festival.step2.unlock",
+      "lockedVisibility": "TITLE_AND_CONDITION",
+      "targets": [
+        {
+          "id": "rabbitquest:defeat_zombies",
+          "kind": "KILL",
+          "resource": "minecraft:zombie",
+          "amount": 10
+        }
+      ],
+      "reward": {
+        "mode": "FIXED",
+        "items": [
+          { "item": "rabbitquest:weapon_tool_voucher", "count": 1 }
+        ]
+      }
+    }
+  ],
+  "completionReward": {
+    "mode": "CHOICE",
+    "groups": [
+      {
+        "items": [
+          { "item": "rabbitquest:building_material_voucher", "count": 2 }
+        ]
+      },
+      {
+        "items": [
+          { "item": "rabbitquest:weapon_tool_voucher", "count": 2 }
+        ]
+      }
+    ]
+  }
+}

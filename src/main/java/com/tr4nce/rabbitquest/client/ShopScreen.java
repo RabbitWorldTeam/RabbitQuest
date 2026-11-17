@@ -144,6 +144,8 @@ final class ShopScreen extends Screen {
             addButton(label("down"), detailX + detailWidth + 2, detailTop + ROW_HEIGHT, 14,
                     () -> scrollDetails(1)).active = detailScroll + visibleRows < detailRows.size() && pendingRequest.isEmpty();
         }
+        addButton(label("events"), left + panelWidth - 176, top + panelHeight - 25, 55, EventClient::open)
+                .active = pendingRequest.isEmpty();
         addButton(label("weekly"), left + panelWidth - 119, top + panelHeight - 25, 55, WeeklyClient::open)
                 .active = pendingRequest.isEmpty();
         addButton(label("close"), left + panelWidth - 62, top + panelHeight - 25, 55, this::onClose);

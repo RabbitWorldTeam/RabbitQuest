@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RabbitQuest Timed Event Definition",
+  "type": "object",
+  "required": ["id", "name", "icon", "startAt", "endAt", "claimEndAt", "steps"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$" },
+    "name": { "type": "string", "minLength": 1 },
+    "nameKey": { "type": "string" },
+    "description": { "type": "string" },
+    "descriptionKey": { "type": "string" },
+    "icon": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$" },
+    "order": { "type": "integer" },
+    "enabled": { "type": "boolean", "default": false },
+    "enrollmentRequired": { "type": "boolean", "default": false },
+    "previewAt": { "type": "string", "format": "date-time" },
+    "startAt": { "type": "string", "format": "date-time" },
+    "endAt": { "type": "string", "format": "date-time" },
+    "claimEndAt": { "type": "string", "format": "date-time" },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "targets"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$" },
+          "name": { "type": "string", "minLength": 1 },
+          "nameKey": { "type": "string" },
+          "description": { "type": "string" },
+          "descriptionKey": { "type": "string" },
+          "unlockCondition": { "type": "string" },
+          "unlockConditionKey": { "type": "string" },
+          "lockedVisibility": {
+            "type": "string",
+            "enum": ["TITLE_AND_CONDITION", "DETAILS", "HIDDEN"],
+            "default": "TITLE_AND_CONDITION"
+          },
+          "targets": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["id", "kind", "amount"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$" },
+                "kind": { "type": "string", "enum": ["DELIVER", "HARVEST", "KILL", "DAMAGE", "ARRIVAL", "CUSTOM"] },
+                "resource": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$" },
+                "amount": { "type": "integer", "minimum": 1 },
+                "dimension": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$" },
+                "region": {
+                  "type": "object",
+                  "required": ["min", "max"],
+                  "properties": {
+                    "min": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+                    "max": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } }
+                  }
+                }
+              }
+            }
+          },
+          "reward": { "$ref": "#/$defs/reward" }
+        }
+      }
+    },
+    "completionReward": { "$ref": "#/$defs/reward" }
+  },
+  "$defs": {
+    "reward": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["FIXED", "CHOICE", "WEIGHTED"] },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["item", "count"],
+            "properties": {
+              "item": { "type": "string" },
+              "count": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+              "weight": { "type": "integer", "minimum": 1 },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["item", "count"],
+                  "properties": {
+                    "item": { "type": "string" },
+                    "count": { "type": "integer", "minimum": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

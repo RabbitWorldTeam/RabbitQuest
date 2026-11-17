@@ -1,11 +1,12 @@
 package com.tr4nce.rabbitquest;
 
+import com.tr4nce.rabbitquest.event.EventService;
 import com.tr4nce.rabbitquest.item.VoucherItems;
+import com.tr4nce.rabbitquest.network.EventNetwork;
 import com.tr4nce.rabbitquest.network.ShopNetwork;
 import com.tr4nce.rabbitquest.network.WeeklyNetwork;
 import com.tr4nce.rabbitquest.shop.ShopService;
 import com.tr4nce.rabbitquest.stats.Action;
-import com.tr4nce.rabbitquest.stats.ActionType;
 import com.tr4nce.rabbitquest.stats.StatsService;
 import com.tr4nce.rabbitquest.weekly.TargetKind;
 import com.tr4nce.rabbitquest.weekly.WeeklyService;
@@ -22,6 +23,7 @@ public final class RabbitQuest {
         VoucherItems.register(modEventBus);
         modEventBus.addListener(ShopNetwork::register);
         modEventBus.addListener(WeeklyNetwork::register);
+        modEventBus.addListener(EventNetwork::register);
         StatsService.register();
         StatsService.setEventSink(RabbitQuest::forwardStat);
         NeoForge.EVENT_BUS.addListener(ShopService::registerCommands);
@@ -31,6 +33,11 @@ public final class RabbitQuest {
         NeoForge.EVENT_BUS.addListener(WeeklyService::serverStarted);
         NeoForge.EVENT_BUS.addListener(WeeklyService::serverStopped);
         NeoForge.EVENT_BUS.addListener(WeeklyService::playerTick);
+        NeoForge.EVENT_BUS.addListener(EventService::registerCommands);
+        NeoForge.EVENT_BUS.addListener(EventService::playerLoggedIn);
+        NeoForge.EVENT_BUS.addListener(EventService::serverStarted);
+        NeoForge.EVENT_BUS.addListener(EventService::serverStopped);
+        NeoForge.EVENT_BUS.addListener(EventService::playerTick);
     }
 
     private static void forwardStat(Action action) {
@@ -39,7 +46,10 @@ public final class RabbitQuest {
             case KILL -> TargetKind.KILL;
             case DAMAGE -> TargetKind.DAMAGE;
         };
+        Vec3 pos = Vec3.atCenterOf(action.position());
         WeeklyService.recordEvent(action.player(), kind, action.target(), action.amount(),
-                action.dimension(), Vec3.atCenterOf(action.position()));
+                action.dimension(), pos);
+        EventService.recordEvent(action.player(), kind, action.target(), action.amount(),
+                action.dimension(), pos);
     }
 }

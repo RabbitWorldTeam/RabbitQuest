@@ -56,7 +56,7 @@ public record WeeklyTarget(ResourceLocation id, TargetKind kind, ResourceLocatio
                     && position.z >= minZ && position.z <= maxZ;
         }
 
-        CompoundTag save() {
+        public CompoundTag save() {
             CompoundTag tag = new CompoundTag();
             tag.put("min", vector(minX, minY, minZ));
             tag.put("max", vector(maxX, maxY, maxZ));
