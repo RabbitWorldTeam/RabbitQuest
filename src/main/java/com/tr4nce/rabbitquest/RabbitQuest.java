@@ -2,8 +2,14 @@ package com.tr4nce.rabbitquest;
 
 import com.tr4nce.rabbitquest.item.VoucherItems;
 import com.tr4nce.rabbitquest.network.ShopNetwork;
+import com.tr4nce.rabbitquest.network.WeeklyNetwork;
 import com.tr4nce.rabbitquest.shop.ShopService;
+import com.tr4nce.rabbitquest.stats.Action;
+import com.tr4nce.rabbitquest.stats.ActionType;
 import com.tr4nce.rabbitquest.stats.StatsService;
+import com.tr4nce.rabbitquest.weekly.TargetKind;
+import com.tr4nce.rabbitquest.weekly.WeeklyService;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
@@ -14,9 +20,26 @@ public final class RabbitQuest {
 
     public RabbitQuest(IEventBus modEventBus) {
         VoucherItems.register(modEventBus);
-        StatsService.register();
         modEventBus.addListener(ShopNetwork::register);
+        modEventBus.addListener(WeeklyNetwork::register);
+        StatsService.register();
+        StatsService.setEventSink(RabbitQuest::forwardStat);
         NeoForge.EVENT_BUS.addListener(ShopService::registerCommands);
         NeoForge.EVENT_BUS.addListener(ShopService::playerLoggedIn);
+        NeoForge.EVENT_BUS.addListener(WeeklyService::registerCommands);
+        NeoForge.EVENT_BUS.addListener(WeeklyService::playerLoggedIn);
+        NeoForge.EVENT_BUS.addListener(WeeklyService::serverStarted);
+        NeoForge.EVENT_BUS.addListener(WeeklyService::serverStopped);
+        NeoForge.EVENT_BUS.addListener(WeeklyService::playerTick);
+    }
+
+    private static void forwardStat(Action action) {
+        TargetKind kind = switch (action.type()) {
+            case HARVEST -> TargetKind.HARVEST;
+            case KILL -> TargetKind.KILL;
+            case DAMAGE -> TargetKind.DAMAGE;
+        };
+        WeeklyService.recordEvent(action.player(), kind, action.target(), action.amount(),
+                action.dimension(), Vec3.atCenterOf(action.position()));
     }
 }
