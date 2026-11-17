@@ -15,6 +15,10 @@ neoForge {
         server { server(); gameDirectory = file('run/server'); programArgument '--nogui' }
     }
     mods { rabbitquest { sourceSet sourceSets.main } }
+    unitTest {
+        enable()
+        testedMod = mods.rabbitquest
+    }
 }
 
 tasks.named('processResources', ProcessResources) {
@@ -26,3 +30,12 @@ tasks.named('processResources', ProcessResources) {
 }
 
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+repositories { mavenCentral() }
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.12.2'
+}
+
+tasks.named('test', Test) { useJUnitPlatform() }
