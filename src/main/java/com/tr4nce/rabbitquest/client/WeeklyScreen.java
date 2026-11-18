@@ -167,39 +167,50 @@ final class WeeklyScreen extends Screen {
         rows.add(y -> caption(label("rewards"), left + 7, y + 6, contentWidth));
         CompoundTag reward = task.getCompound("reward");
         String mode = reward.getString("mode");
-        if (mode.equals("CHOICE") || mode.equals("WEIGHTED")) {
+        if (mode.equals("CHOICE")) {
             ListTag groups = reward.getList("groups", Tag.TAG_COMPOUND);
-            if (mode.equals("CHOICE") && groups.size() > 1) {
-                rows.add(y -> addButton(label("option", selection + 1, groups.size()), left + 7, y,
-                        contentWidth, () -> {
-                            selection = (selection + 1) % groups.size();
-                            rebuild();
-                        }).active = pendingRequest.isEmpty());
-            }
-            selection = Mth.clamp(selection, 0, Math.max(0, groups.size() - 1));
-            int shown = mode.equals("WEIGHTED") && task.getInt("rewardGroup") >= 0
-                    ? task.getInt("rewardGroup") : selection;
-            if (!groups.isEmpty()) {
-                CompoundTag group = groups.getCompound(Mth.clamp(shown, 0, groups.size() - 1));
-                for (Tag item : group.getList("items", Tag.TAG_COMPOUND)) {
+            boolean claimable = task.getBoolean("claimable");
+            for (int i = 0; i < groups.size(); i++) {
+                int groupIndex = i;
+                rows.add(y -> {
+                    caption(label("option_label", groupIndex + 1), left + 7, y + 6, contentWidth - 78);
+                    if (claimable) {
+                        addButton(label("claim"), left + panelWidth - 79, y, 72,
+                                () -> claimCurrentGroup(groupIndex)).active = pendingRequest.isEmpty();
+                    }
+                });
+                for (Tag item : groups.getCompound(groupIndex).getList("items", Tag.TAG_COMPOUND)) {
                     rewardRow((CompoundTag) item);
                 }
             }
-        } else {
-            for (Tag item : reward.getList("items", Tag.TAG_COMPOUND)) {
-                rewardRow((CompoundTag) item);
+            if (!claimable && task.getBoolean("claimed")) {
+                textRow(label("claimed"));
+            } else if (!claimable && (task.getBoolean("expired") || task.getBoolean("completed"))) {
+                textRow(label("expired"));
             }
-        }
-
-        if (task.getBoolean("claimable")) {
-            rows.add(y -> addButton(label("claim"), left + 7, y, contentWidth, this::claimCurrent)
-                    .active = pendingRequest.isEmpty());
-        } else if (task.getBoolean("claimed")) {
-            textRow(label("claimed"));
-        } else if (task.getBoolean("expired")) {
-            textRow(label("expired"));
-        } else if (task.getBoolean("completed")) {
-            textRow(label("expired"));
+        } else {
+            if (mode.equals("WEIGHTED")) {
+                ListTag groups = reward.getList("groups", Tag.TAG_COMPOUND);
+                int shown = task.getInt("rewardGroup") >= 0 ? task.getInt("rewardGroup") : 0;
+                if (!groups.isEmpty()) {
+                    CompoundTag group = groups.getCompound(Mth.clamp(shown, 0, groups.size() - 1));
+                    for (Tag item : group.getList("items", Tag.TAG_COMPOUND)) {
+                        rewardRow((CompoundTag) item);
+                    }
+                }
+            } else {
+                for (Tag item : reward.getList("items", Tag.TAG_COMPOUND)) {
+                    rewardRow((CompoundTag) item);
+                }
+            }
+            if (task.getBoolean("claimable")) {
+                rows.add(y -> addButton(label("claim"), left + 7, y, contentWidth, this::claimCurrent)
+                        .active = pendingRequest.isEmpty());
+            } else if (task.getBoolean("claimed")) {
+                textRow(label("claimed"));
+            } else if (task.getBoolean("expired") || task.getBoolean("completed")) {
+                textRow(label("expired"));
+            }
         }
 
         buildClaims();
@@ -322,6 +333,10 @@ final class WeeklyScreen extends Screen {
     }
 
     private void claimCurrent() {
+        claimCurrentGroup(selection);
+    }
+
+    private void claimCurrentGroup(int groupIndex) {
         CompoundTag task = selectedTaskTag();
         if (task == null) {
             return;
@@ -330,7 +345,7 @@ final class WeeklyScreen extends Screen {
         request.putString("cycle", snapshot.getString("cycle"));
         request.putString("task", task.getString("id"));
         request.putString("order", task.getString("token"));
-        request.putInt("selection", selection);
+        request.putInt("selection", groupIndex);
         submit(request);
     }
 

@@ -170,22 +170,32 @@ final class EventScreen extends Screen {
             CompoundTag reward = event.getCompound("completionReward");
             String mode = reward.getString("mode");
             ListTag groups = reward.getList("groups", Tag.TAG_COMPOUND);
-            if ("CHOICE".equals(mode) && groups.size() > 1 && event.getBoolean("completionClaimable")) {
-                rows.add(y -> addButton(label("option", completionSelection + 1, groups.size()),
-                        left + 7, y, contentWidth, () -> {
-                            completionSelection = (completionSelection + 1) % groups.size();
-                            rebuild();
-                        }).active = pendingRequest.isEmpty());
-            }
-            completionSelection = Mth.clamp(completionSelection, 0, Math.max(0, groups.size() - 1));
-            int shown = "WEIGHTED".equals(mode) && event.getInt("completionRewardGroup") >= 0
-                    ? event.getInt("completionRewardGroup") : completionSelection;
-            renderRewardItems(reward, shown);
-            if (event.getBoolean("completionClaimable")) {
-                rows.add(y -> addButton(label("claim_completion"), left + 7, y, contentWidth,
-                        () -> claimCompletion(event)).active = pendingRequest.isEmpty());
-            } else if (event.getBoolean("completionClaimed")) {
-                textRow(label("claimed"));
+            boolean claimable = event.getBoolean("completionClaimable");
+            if ("CHOICE".equals(mode)) {
+                for (int i = 0; i < groups.size(); i++) {
+                    int groupIndex = i;
+                    rows.add(y -> {
+                        caption(label("option_label", groupIndex + 1), left + 7, y + 6, contentWidth - 78);
+                        if (claimable) {
+                            addButton(label("claim_completion"), left + panelWidth - 79, y, 72,
+                                    () -> claimCompletionGroup(event, groupIndex)).active = pendingRequest.isEmpty();
+                        }
+                    });
+                    renderRewardItems(reward, groupIndex);
+                }
+                if (!claimable && event.getBoolean("completionClaimed")) {
+                    textRow(label("claimed"));
+                }
+            } else {
+                int shown = "WEIGHTED".equals(mode) && event.getInt("completionRewardGroup") >= 0
+                        ? event.getInt("completionRewardGroup") : 0;
+                renderRewardItems(reward, shown);
+                if (claimable) {
+                    rows.add(y -> addButton(label("claim_completion"), left + 7, y, contentWidth,
+                            () -> claimCompletionGroup(event, 0)).active = pendingRequest.isEmpty());
+                } else if (event.getBoolean("completionClaimed")) {
+                    textRow(label("claimed"));
+                }
             }
         }
     }
@@ -241,27 +251,35 @@ final class EventScreen extends Screen {
             }
         }
 
+        boolean isChoice = false;
         if (step.contains("reward", Tag.TAG_COMPOUND)) {
             CompoundTag reward = step.getCompound("reward");
             String mode = reward.getString("mode");
             ListTag groups = reward.getList("groups", Tag.TAG_COMPOUND);
-            int sel = Mth.clamp(stepSelections.getOrDefault(stepId, 0), 0, Math.max(0, groups.size() - 1));
-            if ("CHOICE".equals(mode) && groups.size() > 1 && step.getBoolean("claimable")) {
-                rows.add(y -> addButton(label("option", sel + 1, groups.size()), left + 7, y,
-                        contentWidth, () -> {
-                            stepSelections.put(stepId, (sel + 1) % groups.size());
-                            rebuild();
-                        }).active = pendingRequest.isEmpty());
+            isChoice = "CHOICE".equals(mode);
+            if (isChoice) {
+                boolean stepClaimable = step.getBoolean("claimable");
+                for (int i = 0; i < groups.size(); i++) {
+                    int groupIndex = i;
+                    rows.add(y -> {
+                        caption(label("option_label", groupIndex + 1), left + 7, y + 6, contentWidth - 78);
+                        if (stepClaimable) {
+                            addButton(label("claim_step"), left + panelWidth - 79, y, 72,
+                                    () -> claimStep(event, step, groupIndex)).active = pendingRequest.isEmpty();
+                        }
+                    });
+                    renderRewardItems(reward, groupIndex);
+                }
+            } else {
+                int shown = "WEIGHTED".equals(mode) && step.getInt("rewardGroup") >= 0
+                        ? step.getInt("rewardGroup") : 0;
+                renderRewardItems(reward, shown);
             }
-            int shown = "WEIGHTED".equals(mode) && step.getInt("rewardGroup") >= 0
-                    ? step.getInt("rewardGroup") : sel;
-            renderRewardItems(reward, shown);
         }
 
-        if (step.getBoolean("claimable")) {
-            int sel = stepSelections.getOrDefault(stepId, 0);
+        if (!isChoice && step.getBoolean("claimable")) {
             rows.add(y -> addButton(label("claim_step"), left + 7, y, contentWidth,
-                    () -> claimStep(event, step, sel)).active = pendingRequest.isEmpty());
+                    () -> claimStep(event, step, 0)).active = pendingRequest.isEmpty());
         } else if (step.getBoolean("claimed")) {
             textRow(label("claimed"));
         }
@@ -349,10 +367,10 @@ final class EventScreen extends Screen {
         submit(request);
     }
 
-    private void claimCompletion(CompoundTag event) {
+    private void claimCompletionGroup(CompoundTag event, int groupIndex) {
         CompoundTag request = request("claim_completion");
         request.putString("event", event.getString("id"));
-        request.putInt("selection", completionSelection);
+        request.putInt("selection", groupIndex);
         submit(request);
     }
 

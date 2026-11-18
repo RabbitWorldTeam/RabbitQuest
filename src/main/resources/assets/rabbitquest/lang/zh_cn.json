@@ -205,5 +205,10 @@
   "rabbitquest.tab.shop": "商店",
   "rabbitquest.tab.weekly": "周常",
   "rabbitquest.tab.events": "活动",
-  "itemGroup.rabbitquest": "RabbitQuest"
+  "itemGroup.rabbitquest": "RabbitQuest",
+  "rabbitquest.shop.option_selected": "选项 %s · 已选",
+  "rabbitquest.shop.option_select": "选择选项 %s",
+  "rabbitquest.weekly.option_label": "选项 %s",
+  "rabbitquest.event.option_label": "选项 %s",
+  "rabbitquest.shop.preset.ok": "已写入 %s 个预设商品并同步商店。"
 }

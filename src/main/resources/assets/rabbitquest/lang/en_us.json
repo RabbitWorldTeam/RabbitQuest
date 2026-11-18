@@ -205,5 +205,10 @@
   "rabbitquest.tab.shop": "Shop",
   "rabbitquest.tab.weekly": "Weekly",
   "rabbitquest.tab.events": "Events",
-  "itemGroup.rabbitquest": "RabbitQuest"
+  "itemGroup.rabbitquest": "RabbitQuest",
+  "rabbitquest.shop.option_selected": "Option %s · Selected",
+  "rabbitquest.shop.option_select": "Select option %s",
+  "rabbitquest.weekly.option_label": "Option %s",
+  "rabbitquest.event.option_label": "Option %s",
+  "rabbitquest.shop.preset.ok": "Installed %s preset shop products."
 }

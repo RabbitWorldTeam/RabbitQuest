@@ -30,16 +30,41 @@ public final class ShopService {
     private ShopService() {}
 
     public static void registerCommands(RegisterCommandsEvent event) {
-        event.getDispatcher().register(Commands.literal("rabbitquest").executes(context -> {
-            ServerPlayer player = context.getSource().getPlayerOrException();
-            ShopSavedData data = ShopSavedData.get(player.server);
-            if (data == null) {
-                context.getSource().sendFailure(Component.translatable(RESPONSE_PREFIX + "storage"));
-                return 0;
-            }
-            send(player, data, true, "", "");
-            return 1;
-        }));
+        event.getDispatcher().register(Commands.literal("rabbitquest")
+                .executes(context -> {
+                    ServerPlayer player = context.getSource().getPlayerOrException();
+                    ShopSavedData data = ShopSavedData.get(player.server);
+                    if (data == null) {
+                        context.getSource().sendFailure(Component.translatable(RESPONSE_PREFIX + "storage"));
+                        return 0;
+                    }
+                    send(player, data, true, "", "");
+                    return 1;
+                })
+                .then(Commands.literal("shop")
+                        .then(Commands.literal("preset").requires(source -> source.hasPermission(2))
+                                .then(Commands.literal("all")
+                                        .executes(context -> installPreset(context.getSource(),
+                                                ShopPresets.Target.ALL)))
+                                .then(Commands.literal("weapons")
+                                        .executes(context -> installPreset(context.getSource(),
+                                                ShopPresets.Target.WEAPONS)))
+                                .then(Commands.literal("glass")
+                                        .executes(context -> installPreset(context.getSource(),
+                                                ShopPresets.Target.GLASS))))));
+    }
+
+    private static int installPreset(net.minecraft.commands.CommandSourceStack source, ShopPresets.Target target) {
+        MinecraftServer server = source.getServer();
+        ShopSavedData data = ShopSavedData.get(server);
+        if (data == null) {
+            source.sendFailure(Component.translatable(RESPONSE_PREFIX + "storage"));
+            return 0;
+        }
+        int count = ShopPresets.install(data, server.registryAccess(), target);
+        push(server, data, null);
+        source.sendSuccess(() -> Component.translatable("rabbitquest.shop.preset.ok", count), true);
+        return 1;
     }
 
     public static void playerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {

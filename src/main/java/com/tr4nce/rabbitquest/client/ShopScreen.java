@@ -254,18 +254,28 @@ final class ShopScreen extends Screen {
         ListTag options = list(entry, "options");
         rewardOption = Mth.clamp(rewardOption, 0, Math.max(0, options.size() - 1));
         if (!options.isEmpty()) {
-            int option = entry.getBoolean("choice") ? rewardOption : 0;
             if (entry.getBoolean("choice")) {
-                detailRows.add(y -> addButton(label("option", option + 1, options.size()), detailX, y,
-                        detailWidth, () -> {
-                            rewardOption = (rewardOption + 1) % options.size();
-                            rebuild();
-                        }).active = options.size() > 1 && pendingRequest.isEmpty());
-            }
-            for (Tag item : list(options.getCompound(option), "items")) {
-                CompoundTag stack = (CompoundTag) item;
-                int count = stack.contains("rewardCount") ? stack.getInt("rewardCount") : stack.getInt("count");
-                itemDetails(stack, count, Component.empty());
+                for (int i = 0; i < options.size(); i++) {
+                    int optionIndex = i;
+                    boolean selected = optionIndex == rewardOption;
+                    detailRows.add(y -> addButton(
+                            label(selected ? "option_selected" : "option_select", optionIndex + 1),
+                            detailX, y, detailWidth, () -> {
+                                rewardOption = optionIndex;
+                                rebuild();
+                            }).active = !selected && pendingRequest.isEmpty());
+                    for (Tag item : list(options.getCompound(optionIndex), "items")) {
+                        CompoundTag stack = (CompoundTag) item;
+                        int count = stack.contains("rewardCount") ? stack.getInt("rewardCount") : stack.getInt("count");
+                        itemDetails(stack, count, Component.empty());
+                    }
+                }
+            } else {
+                for (Tag item : list(options.getCompound(0), "items")) {
+                    CompoundTag stack = (CompoundTag) item;
+                    int count = stack.contains("rewardCount") ? stack.getInt("rewardCount") : stack.getInt("count");
+                    itemDetails(stack, count, Component.empty());
+                }
             }
         }
         if (entry.getInt("stock") >= 0) {
