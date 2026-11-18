@@ -3,6 +3,7 @@ package com.tr4nce.rabbitquest.event;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.tr4nce.rabbitquest.network.EventNetwork;
+import com.tr4nce.rabbitquest.network.QuestBookNetwork;
 import com.tr4nce.rabbitquest.storage.InventorySnapshot;
 import com.tr4nce.rabbitquest.storage.RecoveryService;
 import com.tr4nce.rabbitquest.storage.TransactionJournal;
@@ -30,6 +31,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -182,12 +187,16 @@ public final class EventService {
         if (server != current.server() || server.getRunningThread() != Thread.currentThread()) {
             return 0;
         }
+        CompletionState before = captureCompletionState(current, player.getUUID());
         int added = EventEngine.record(current.data(), player.getUUID(), current.definitions(), Instant.now(),
                 kind, resource, amount, dimension == null ? null : dimension.location(), position,
                 player.getInventory().items);
-        if (added > 0 && kind == TargetKind.DELIVER) {
-            player.getInventory().setChanged();
-            player.containerMenu.broadcastChanges();
+        if (added > 0) {
+            if (kind == TargetKind.DELIVER) {
+                player.getInventory().setChanged();
+                player.containerMenu.broadcastChanges();
+            }
+            notifyEventCompletions(current, player, before, true);
         }
         return added;
     }
@@ -211,9 +220,11 @@ public final class EventService {
         if (server != current.server() || server.getRunningThread() != Thread.currentThread()) {
             return;
         }
+        CompletionState before = captureCompletionState(current, player.getUUID());
         int added = EventEngine.recordArrival(current.data(), player.getUUID(), current.definitions(),
                 Instant.now(), player.level().dimension().location(), player.position());
         if (added > 0) {
+            notifyEventCompletions(current, player, before, false);
             send(player, false, "", "");
         }
     }
@@ -237,6 +248,7 @@ public final class EventService {
         ResourceLocation eventId = ResourceLocation.tryParse(request.getString("event"));
         ResourceLocation stepId = ResourceLocation.tryParse(request.getString("step"));
         ResourceLocation targetId = ResourceLocation.tryParse(request.getString("target"));
+        CompletionState before = captureCompletionState(current, player.getUUID());
         TransactionJournal wal = RecoveryService.journal();
         String beforeHash = wal == null ? ""
                 : InventorySnapshot.fingerprint(player.getInventory().items, player.registryAccess());
@@ -250,8 +262,64 @@ public final class EventService {
             }
             player.getInventory().setChanged();
             player.containerMenu.broadcastChanges();
+            notifyEventCompletions(current, player, before, false);
         }
         send(player, false, RESULT_PREFIX + result.outcome(), requestId);
+    }
+
+    private record CompletionState(Map<ResourceLocation, Set<ResourceLocation>> steps,
+                                   Set<ResourceLocation> events) {}
+
+    private static CompletionState captureCompletionState(Runtime current, UUID playerId) {
+        Map<ResourceLocation, Set<ResourceLocation>> steps = new HashMap<>();
+        Set<ResourceLocation> events = new HashSet<>();
+        for (TimedEventDefinition event : current.definitions().enabledEvents()) {
+            CompoundTag eventTag = current.data().event(playerId, event.id());
+            CompoundTag stepsTag = eventTag.getCompound("steps");
+            Set<ResourceLocation> completedSteps = new HashSet<>();
+            boolean allCompleted = !event.steps().isEmpty();
+            for (EventStep step : event.steps()) {
+                if (stepsTag.getCompound(step.id().toString()).getBoolean("completed")) {
+                    completedSteps.add(step.id());
+                } else {
+                    allCompleted = false;
+                }
+            }
+            steps.put(event.id(), completedSteps);
+            if (allCompleted) {
+                events.add(event.id());
+            }
+        }
+        return new CompletionState(steps, events);
+    }
+
+    private static void notifyEventCompletions(Runtime current, ServerPlayer player, CompletionState before,
+                                               boolean pushSnapshot) {
+        boolean anyNew = false;
+        for (TimedEventDefinition event : current.definitions().enabledEvents()) {
+            CompoundTag eventTag = current.data().event(player.getUUID(), event.id());
+            CompoundTag stepsTag = eventTag.getCompound("steps");
+            Set<ResourceLocation> beforeSteps = before.steps().getOrDefault(event.id(), Set.of());
+            boolean allCompleted = !event.steps().isEmpty();
+            for (EventStep step : event.steps()) {
+                boolean completed = stepsTag.getCompound(step.id().toString()).getBoolean("completed");
+                if (!completed) {
+                    allCompleted = false;
+                } else if (!beforeSteps.contains(step.id())) {
+                    QuestBookNetwork.sendToast(player, "rabbitquest.toast.event_step_complete",
+                            step.name(), step.nameKey(), event.icon().toString());
+                    anyNew = true;
+                }
+            }
+            if (allCompleted && !before.events().contains(event.id())) {
+                QuestBookNetwork.sendToast(player, "rabbitquest.toast.event_complete",
+                        event.name(), event.nameKey(), event.icon().toString());
+                anyNew = true;
+            }
+        }
+        if (anyNew && pushSnapshot) {
+            send(player, false, "", "");
+        }
     }
 
     private static void claimStep(Runtime current, ServerPlayer player, CompoundTag request, String requestId) {

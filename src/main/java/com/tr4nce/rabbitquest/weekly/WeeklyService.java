@@ -2,6 +2,7 @@ package com.tr4nce.rabbitquest.weekly;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.tr4nce.rabbitquest.network.QuestBookNetwork;
 import com.tr4nce.rabbitquest.network.WeeklyNetwork;
 import com.tr4nce.rabbitquest.storage.InventorySnapshot;
 import com.tr4nce.rabbitquest.storage.RecoveryService;
@@ -32,7 +33,9 @@ import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -206,12 +209,16 @@ public final class WeeklyService {
             return 0;
         }
         LocalDate week = current.definitions().cycle().start(Instant.now());
+        Set<ResourceLocation> completedBefore = completedWeeklyIds(current, player.getUUID(), week);
         int added = WeeklyEngine.record(current.data(), player.getUUID(), current.definitions(), week, kind,
                 resource, amount, dimension == null ? null : dimension.location(), position,
                 player.getInventory().items, System.currentTimeMillis());
-        if (added > 0 && kind == TargetKind.DELIVER) {
-            player.getInventory().setChanged();
-            player.containerMenu.broadcastChanges();
+        if (added > 0) {
+            if (kind == TargetKind.DELIVER) {
+                player.getInventory().setChanged();
+                player.containerMenu.broadcastChanges();
+            }
+            notifyWeeklyCompletions(current, player, week, completedBefore, true);
         }
         return added;
     }
@@ -238,9 +245,11 @@ public final class WeeklyService {
             return;
         }
         LocalDate week = current.definitions().cycle().start(Instant.now());
+        Set<ResourceLocation> completedBefore = completedWeeklyIds(current, player.getUUID(), week);
         int added = WeeklyEngine.recordArrival(current.data(), player.getUUID(), current.definitions(), week,
                 player.level().dimension().location(), player.position(), System.currentTimeMillis());
         if (added > 0) {
+            notifyWeeklyCompletions(current, player, week, completedBefore, false);
             send(player, false, "", "");
         }
     }
@@ -303,6 +312,7 @@ public final class WeeklyService {
             return;
         }
         LocalDate week = current.definitions().cycle().start(Instant.now());
+        Set<ResourceLocation> completedBefore = completedWeeklyIds(current, player.getUUID(), week);
         TransactionJournal wal = RecoveryService.journal();
         String beforeHash = wal == null ? ""
                 : InventorySnapshot.fingerprint(player.getInventory().items, player.registryAccess());
@@ -325,8 +335,36 @@ public final class WeeklyService {
             }
             player.getInventory().setChanged();
             player.containerMenu.broadcastChanges();
+            notifyWeeklyCompletions(current, player, week, completedBefore, false);
         }
         send(player, false, RESULT_PREFIX + result.outcome(), requestId);
+    }
+
+    private static Set<ResourceLocation> completedWeeklyIds(Runtime current, UUID playerId, LocalDate week) {
+        Set<ResourceLocation> completed = new HashSet<>();
+        for (WeeklyEngine.ActiveTask active : WeeklyEngine.activeTasks(current.definitions(), current.data(), week)) {
+            if (current.data().task(playerId, week.toString(), active.task().id()).getBoolean("completed")) {
+                completed.add(active.task().id());
+            }
+        }
+        return completed;
+    }
+
+    private static void notifyWeeklyCompletions(Runtime current, ServerPlayer player, LocalDate week,
+                                                Set<ResourceLocation> before, boolean pushSnapshot) {
+        boolean anyNew = false;
+        for (WeeklyEngine.ActiveTask active : WeeklyEngine.activeTasks(current.definitions(), current.data(), week)) {
+            ResourceLocation taskId = active.task().id();
+            if (!before.contains(taskId)
+                    && current.data().task(player.getUUID(), week.toString(), taskId).getBoolean("completed")) {
+                QuestBookNetwork.sendToast(player, "rabbitquest.toast.weekly_complete",
+                        active.task().name(), active.task().nameKey(), active.task().icon().toString());
+                anyNew = true;
+            }
+        }
+        if (anyNew && pushSnapshot) {
+            send(player, false, "", "");
+        }
     }
 
     private static void send(ServerPlayer player, boolean open, String message, String requestId) {

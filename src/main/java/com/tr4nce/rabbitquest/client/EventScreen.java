@@ -12,6 +12,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
@@ -39,6 +40,7 @@ final class EventScreen extends Screen {
     private CompoundTag snapshot;
     private String message = "";
     private String pendingRequest = "";
+    private String pendingAction = "";
     private String selectedEvent = "";
     private int completionSelection;
     private int scroll;
@@ -59,8 +61,22 @@ final class EventScreen extends Screen {
         snapshot = incoming;
         String reply = incoming.getString("requestId");
         if (!pendingRequest.isEmpty() && reply.equals(pendingRequest)) {
+            String action = pendingAction;
             pendingRequest = "";
+            pendingAction = "";
             message = incoming.getString("message");
+            if ((KEY_PREFIX + "result.ok").equals(message)) {
+                if ("claim_completion".equals(action)) {
+                    QuestBookClient.playSound(SoundEvents.AMETHYST_BLOCK_CHIME, 0.8F, 1.0F);
+                    QuestBookClient.playSound(SoundEvents.PLAYER_LEVELUP, 0.5F, 1.0F);
+                } else if ("claim_step".equals(action)) {
+                    QuestBookClient.playSound(SoundEvents.PLAYER_LEVELUP, 0.5F, 1.2F);
+                } else if ("deliver".equals(action) || "enroll".equals(action)) {
+                    QuestBookClient.playSound(SoundEvents.BUNDLE_INSERT, 0.7F, 1.0F);
+                }
+            } else if (!message.isEmpty()) {
+                QuestBookClient.playSound(SoundEvents.VILLAGER_NO, 0.4F, 1.0F);
+            }
         }
         String first = firstEventId(incoming);
         if (!hasEvent(incoming, selectedEvent)) {
@@ -387,6 +403,7 @@ final class EventScreen extends Screen {
             return;
         }
         pendingRequest = request.getString("requestId");
+        pendingAction = request.getString("action");
         message = KEY_PREFIX + "pending";
         EventNetwork.send(request);
         rebuild();

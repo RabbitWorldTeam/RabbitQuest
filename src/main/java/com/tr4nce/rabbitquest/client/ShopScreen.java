@@ -18,6 +18,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
@@ -42,6 +43,7 @@ final class ShopScreen extends Screen {
     private String selection = "";
     private String message = "";
     private String pendingRequest = "";
+    private String pendingAction = "";
     private String quantity = "1";
     private int rewardOption;
     private int leftScroll;
@@ -72,19 +74,29 @@ final class ShopScreen extends Screen {
         String result = incoming.getString("message");
         String reply = incoming.getString("requestId");
         if (!result.isEmpty() && !pendingRequest.isEmpty() && reply.equals(pendingRequest)) {
+            String action = pendingAction;
             pendingRequest = "";
+            pendingAction = "";
             message = result;
-            if (result.equals(RESULT_OK) && draft != null) {
-                selection = draft.id;
-                draft = null;
-                sampleTarget = null;
-                detailScroll = 0;
-            } else if (result.equals(KEY_PREFIX + "result.stale") && draft != null) {
-                if (canRetryDraft()) {
-                    draft.baseRevision = snapshot.getLong("revision");
-                } else {
-                    draft.conflicted = true;
-                    message = KEY_PREFIX + "result.edit_conflict";
+            if (result.equals(RESULT_OK)) {
+                if ("buy".equals(action)) {
+                    QuestBookClient.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.6F, 1.1F);
+                }
+                if (draft != null) {
+                    selection = draft.id;
+                    draft = null;
+                    sampleTarget = null;
+                    detailScroll = 0;
+                }
+            } else {
+                QuestBookClient.playSound(SoundEvents.VILLAGER_NO, 0.4F, 1.0F);
+                if (result.equals(KEY_PREFIX + "result.stale") && draft != null) {
+                    if (canRetryDraft()) {
+                        draft.baseRevision = snapshot.getLong("revision");
+                    } else {
+                        draft.conflicted = true;
+                        message = KEY_PREFIX + "result.edit_conflict";
+                    }
                 }
             }
         }
@@ -750,6 +762,7 @@ final class ShopScreen extends Screen {
             return;
         }
         pendingRequest = request.getString("requestId");
+        pendingAction = request.getString("action");
         message = KEY_PREFIX + "pending";
         ShopNetwork.send(request);
         rebuild();

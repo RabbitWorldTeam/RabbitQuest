@@ -9,6 +9,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -107,10 +108,27 @@ public final class QuestBookClient {
         }
     }
 
+    public static void showToast(String titleKey, String subtitle, String subtitleKey, String iconId) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null) {
+            return;
+        }
+        Component title = Component.translatable(titleKey);
+        Component body = subtitleKey != null && !subtitleKey.isBlank()
+                ? Component.translatable(subtitleKey)
+                : Component.literal(subtitle == null ? "" : subtitle);
+        client.getToasts().addToast(new QuestToast(title, body, iconId));
+        client.player.playSound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 0.5F, 1.0F);
+    }
+
     public static void playPageTurn() {
+        playSound(SoundEvents.BOOK_PAGE_TURN, 1.0F, 1.0F);
+    }
+
+    public static void playSound(SoundEvent sound, float volume, float pitch) {
         Minecraft client = Minecraft.getInstance();
         if (client.player != null) {
-            client.player.playSound(SoundEvents.BOOK_PAGE_TURN, 1.0F, 1.0F);
+            client.player.playSound(sound, volume, pitch);
         }
     }
 
