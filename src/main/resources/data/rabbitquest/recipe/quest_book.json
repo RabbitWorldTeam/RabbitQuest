@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    { "item": "minecraft:book" },
+    { "item": "minecraft:carrot" }
+  ],
+  "result": {
+    "id": "rabbitquest:quest_book",
+    "count": 1
+  }
+}

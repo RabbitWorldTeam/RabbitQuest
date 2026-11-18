@@ -4,6 +4,7 @@ import com.tr4nce.rabbitquest.config.ReloadService;
 import com.tr4nce.rabbitquest.event.EventService;
 import com.tr4nce.rabbitquest.item.VoucherItems;
 import com.tr4nce.rabbitquest.network.EventNetwork;
+import com.tr4nce.rabbitquest.network.QuestBookNetwork;
 import com.tr4nce.rabbitquest.network.ShopNetwork;
 import com.tr4nce.rabbitquest.network.WeeklyNetwork;
 import com.tr4nce.rabbitquest.shop.ShopService;
@@ -26,6 +27,7 @@ public final class RabbitQuest {
         modEventBus.addListener(ShopNetwork::register);
         modEventBus.addListener(WeeklyNetwork::register);
         modEventBus.addListener(EventNetwork::register);
+        modEventBus.addListener(QuestBookNetwork::register);
         StatsService.register();
         StatsService.setEventSink(RabbitQuest::forwardStat);
         NeoForge.EVENT_BUS.addListener(RecoveryService::serverStarted);

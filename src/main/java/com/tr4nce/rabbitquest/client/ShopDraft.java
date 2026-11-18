@@ -1,6 +1,7 @@
 package com.tr4nce.rabbitquest.client;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.IdentityHashMap;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -44,7 +45,8 @@ final class ShopDraft {
     }
 
     String count(CompoundTag row) {
-        int count = row.contains("count") ? row.getInt("count") : 1;
+        int count = row.contains("rewardCount") ? row.getInt("rewardCount")
+                : (row.contains("count") ? row.getInt("count") : 1);
         return counts.getOrDefault(row, Integer.toString(count));
     }
 
@@ -115,7 +117,7 @@ final class ShopDraft {
             ListTag items = list(options.getCompound(index), "items");
             ListTag savedItems = list(savedOptions.getCompound(index), "items");
             for (int item = 0; item < items.size(); item++) {
-                savedItems.getCompound(item).putInt("count", positive(count(items.getCompound(item))));
+                savedItems.getCompound(item).putInt("rewardCount", positive(count(items.getCompound(item))));
             }
         }
         return result;
@@ -145,7 +147,7 @@ final class ShopDraft {
         if (value.isBlank()) {
             data.remove(key);
         } else {
-            data.putLong(key, Instant.parse(value).getEpochSecond());
+            data.putLong(key, OffsetDateTime.parse(value).toInstant().getEpochSecond());
         }
     }
 

@@ -198,5 +198,12 @@
   "rabbitquest.weekly.result.stale": "配置已更新，请核对最新内容后重试。",
   "rabbitquest.event.result.stale": "活动配置已更新，请核对最新内容后重试。",
   "rabbitquest.reload.ok": "RabbitQuest 配置热重载成功（版本 %s）。",
-  "rabbitquest.reload.failed": "RabbitQuest 配置热重载失败，已沿用上一版配置：%s"
+  "rabbitquest.reload.failed": "RabbitQuest 配置热重载失败，已沿用上一版配置：%s",
+  "item.rabbitquest.quest_book": "兔兔任务书",
+  "item.rabbitquest.quest_book.tooltip": "右键打开商店、每周订单与限时活动。",
+  "item.rabbitquest.quest_book.claimable": "待领取奖励：周常 %s 项 · 活动 %s 项",
+  "rabbitquest.tab.shop": "商店",
+  "rabbitquest.tab.weekly": "周常",
+  "rabbitquest.tab.events": "活动",
+  "itemGroup.rabbitquest": "RabbitQuest"
 }

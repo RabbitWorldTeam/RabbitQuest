@@ -47,6 +47,7 @@ public final class ShopClient {
         if (client.screen instanceof ShopScreen shop) {
             shop.receive(snapshot);
         } else if (snapshot.getBoolean("open")) {
+            QuestBookClient.remember(QuestBookClient.Tab.SHOP);
             client.setScreen(new ShopScreen(snapshot));
         }
     }

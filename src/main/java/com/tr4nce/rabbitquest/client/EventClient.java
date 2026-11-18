@@ -22,9 +22,11 @@ public final class EventClient {
         if (client.player == null || !snapshot.getString("type").equals("event_snapshot")) {
             return;
         }
+        QuestBookClient.updateEventBadges(snapshot);
         if (client.screen instanceof EventScreen eventScreen) {
             eventScreen.receive(snapshot);
         } else if (snapshot.getBoolean("open")) {
+            QuestBookClient.remember(QuestBookClient.Tab.EVENTS);
             client.setScreen(new EventScreen(snapshot));
         }
     }

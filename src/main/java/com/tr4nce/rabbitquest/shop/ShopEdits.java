@@ -112,19 +112,29 @@ final class ShopEdits {
             ItemStack expected = parse(tag.getCompound("expected"));
             require(!stack.isEmpty() && !expected.isEmpty()
                     && ItemStack.isSameItemSameComponents(stack, expected));
-            if (keepCount && tag.contains("count", Tag.TAG_INT)) {
-                stack.setCount(tag.getInt("count"));
+            int count = tag.contains("rewardCount", Tag.TAG_INT) ? tag.getInt("rewardCount")
+                    : (tag.contains("count", Tag.TAG_INT) ? tag.getInt("count") : stack.getCount());
+            require(!stack.isEmpty() && (!keepCount || count > 0));
+            stack.setCount(1);
+            CompoundTag saved = (CompoundTag) stack.save(player.registryAccess());
+            if (keepCount) {
+                saved.putInt("rewardCount", count);
             }
+            return saved;
         } else {
             stack = parse(tag);
+            int count = tag.contains("rewardCount", Tag.TAG_INT) ? tag.getInt("rewardCount")
+                    : (tag.contains("count", Tag.TAG_INT) ? tag.getInt("count") : stack.getCount());
             require(!stack.isEmpty() && (sampledFromInventory(stack) || templates.stream()
                     .anyMatch(template -> ItemStack.isSameItemSameComponents(stack, template))));
-        }
-        require(!stack.isEmpty() && (!keepCount || stack.getCount() <= stack.getMaxStackSize()));
-        if (!keepCount) {
+            require(!keepCount || count > 0);
             stack.setCount(1);
+            CompoundTag saved = (CompoundTag) stack.save(player.registryAccess());
+            if (keepCount) {
+                saved.putInt("rewardCount", count);
+            }
+            return saved;
         }
-        return (CompoundTag) stack.save(player.registryAccess());
     }
 
     private boolean sampledFromInventory(ItemStack stack) {

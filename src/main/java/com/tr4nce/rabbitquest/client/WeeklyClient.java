@@ -22,9 +22,11 @@ public final class WeeklyClient {
         if (client.player == null || !snapshot.getString("type").equals("weekly_snapshot")) {
             return;
         }
+        QuestBookClient.updateWeeklyBadges(snapshot);
         if (client.screen instanceof WeeklyScreen weekly) {
             weekly.receive(snapshot);
         } else if (snapshot.getBoolean("open")) {
+            QuestBookClient.remember(QuestBookClient.Tab.WEEKLY);
             client.setScreen(new WeeklyScreen(snapshot));
         }
     }

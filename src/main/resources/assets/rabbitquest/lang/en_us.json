@@ -198,5 +198,12 @@
   "rabbitquest.weekly.result.stale": "Definitions updated; review and try again.",
   "rabbitquest.event.result.stale": "Event definitions updated; review and try again.",
   "rabbitquest.reload.ok": "RabbitQuest configuration reloaded (version %s).",
-  "rabbitquest.reload.failed": "RabbitQuest reload rejected; kept previous definitions: %s"
+  "rabbitquest.reload.failed": "RabbitQuest reload rejected; kept previous definitions: %s",
+  "item.rabbitquest.quest_book": "Rabbit Quest Book",
+  "item.rabbitquest.quest_book.tooltip": "Right-click to open Shop, Weekly Orders, and Timed Events.",
+  "item.rabbitquest.quest_book.claimable": "Claimable rewards: %s weekly · %s events",
+  "rabbitquest.tab.shop": "Shop",
+  "rabbitquest.tab.weekly": "Weekly",
+  "rabbitquest.tab.events": "Events",
+  "itemGroup.rabbitquest": "RabbitQuest"
 }

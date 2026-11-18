@@ -98,9 +98,9 @@ final class ShopScreen extends Screen {
 
     @Override
     protected void init() {
-        panelWidth = Math.min(width - 12, 510);
+        panelWidth = Math.min(width - BookmarkTabs.GUTTER - 12, 510);
         panelHeight = Math.min(height - 12, 328);
-        left = (width - panelWidth) / 2;
+        left = BookmarkTabs.GUTTER + (width - BookmarkTabs.GUTTER - panelWidth) / 2;
         top = (height - panelHeight) / 2;
         listWidth = Math.max(66, Math.min(146, panelWidth / 3));
         detailX = left + listWidth + 12;
@@ -144,10 +144,8 @@ final class ShopScreen extends Screen {
             addButton(label("down"), detailX + detailWidth + 2, detailTop + ROW_HEIGHT, 14,
                     () -> scrollDetails(1)).active = detailScroll + visibleRows < detailRows.size() && pendingRequest.isEmpty();
         }
-        addButton(label("events"), left + panelWidth - 176, top + panelHeight - 25, 55, EventClient::open)
-                .active = pendingRequest.isEmpty();
-        addButton(label("weekly"), left + panelWidth - 119, top + panelHeight - 25, 55, WeeklyClient::open)
-                .active = pendingRequest.isEmpty();
+        BookmarkTabs.attach(QuestBookClient.Tab.SHOP, left, top, pendingRequest.isEmpty(),
+                this::addRenderableWidget);
         addButton(label("close"), left + panelWidth - 62, top + panelHeight - 25, 55, this::onClose);
         if (!message.isEmpty()) {
             caption(Component.translatable(message), left + 7, top + panelHeight - 19, panelWidth - 78);
@@ -266,7 +264,8 @@ final class ShopScreen extends Screen {
             }
             for (Tag item : list(options.getCompound(option), "items")) {
                 CompoundTag stack = (CompoundTag) item;
-                itemDetails(stack, stack.getInt("count"), Component.empty());
+                int count = stack.contains("rewardCount") ? stack.getInt("rewardCount") : stack.getInt("count");
+                itemDetails(stack, count, Component.empty());
             }
         }
         if (entry.getInt("stock") >= 0) {

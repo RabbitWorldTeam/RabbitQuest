@@ -74,9 +74,9 @@ final class EventScreen extends Screen {
 
     @Override
     protected void init() {
-        panelWidth = Math.min(width - 12, 470);
+        panelWidth = Math.min(width - BookmarkTabs.GUTTER - 12, 470);
         panelHeight = Math.min(height - 12, 330);
-        left = (width - panelWidth) / 2;
+        left = BookmarkTabs.GUTTER + (width - BookmarkTabs.GUTTER - panelWidth) / 2;
         top = (height - panelHeight) / 2;
         contentTop = top + 32;
         contentBottom = top + panelHeight - 52;
@@ -85,10 +85,10 @@ final class EventScreen extends Screen {
         icons.clear();
         rows.clear();
 
+        BookmarkTabs.attach(QuestBookClient.Tab.EVENTS, left, top, pendingRequest.isEmpty(),
+                this::addRenderableWidget);
         addButton(label("title"), left + 7, top + 6, 120, this::rebuild).active = false;
-        addButton(label("refresh"), left + panelWidth - 150, top + 6, 66, EventClient::open)
-                .active = pendingRequest.isEmpty();
-        addButton(label("back"), left + panelWidth - 80, top + 6, 73, this::backToShop)
+        addButton(label("refresh"), left + panelWidth - 73, top + 6, 66, EventClient::open)
                 .active = pendingRequest.isEmpty();
         addButton(label("close"), left + panelWidth - 80, top + panelHeight - 25, 73, this::onClose);
 

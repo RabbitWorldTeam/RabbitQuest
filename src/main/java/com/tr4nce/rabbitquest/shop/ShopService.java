@@ -212,11 +212,22 @@ public final class ShopService {
         }
         List<ItemStack> rewards = new ArrayList<>();
         for (Tag item : options.getCompound(selected).getList("items", Tag.TAG_COMPOUND)) {
-            ItemStack stack = parse(registries, item);
+            CompoundTag entry = (CompoundTag) item;
+            ItemStack stack = parse(registries, entry);
             if (stack.isEmpty()) {
                 return "unavailable";
             }
-            rewards.add(stack);
+            int rewardTotal = entry.contains("rewardCount", Tag.TAG_INT)
+                    ? entry.getInt("rewardCount") : stack.getCount();
+            if (rewardTotal <= 0) {
+                return "unavailable";
+            }
+            int max = Math.max(1, stack.getMaxStackSize());
+            while (rewardTotal > 0) {
+                int chunk = Math.min(rewardTotal, max);
+                rewards.add(stack.copyWithCount(chunk));
+                rewardTotal -= chunk;
+            }
         }
 
         var result = TradeInventory.plan(inventory, costs, rewards, amount);
