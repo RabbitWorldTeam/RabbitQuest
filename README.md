@@ -17,7 +17,7 @@
 
 ## 安装
 
-将 `rabbitquest-1.21.1-neoforge-1.0.0.jar` 放入客户端与服务端的 `mods/`。RabbitQuest 可独立安装。计划从 RabbitCore 的旧任务系统切换时，先结清旧系统待领奖励并备份已有世界和任务配置。RabbitQuest 的任务与统计从启用时开始记录。
+将 `rabbitquest-1.21.1-neoforge-1.0.1.jar` 放入客户端与服务端的 `mods/`。RabbitQuest 可独立安装。计划从 RabbitCore 的旧任务系统切换时，先结清旧系统待领奖励并备份已有世界和任务配置。RabbitQuest 的任务与统计从启用时开始记录。
 
 ## 常用入口
 
@@ -30,7 +30,7 @@
 | `/rabbitquest stats` | 查看自己的行为统计 |
 | `/rabbitquest reload` | 管理员校验并热重载任务数据包 |
 
-活动配置可以参考[验收数据包](test-datapacks/event-flow)。将自己的数据包放入世界存档的 `datapacks/`，由服务端加载。
+正式发布附带[个人周常数据包](datapacks/rabbitworld_weekly)。将 ZIP 放进服务端世界的 `datapacks/` 后重启。活动配置可参考[验收数据包](test-datapacks/event-flow)。OP 可用 `/rabbitquest shop preset materials` 导入初始建材商店。
 
 ## 从源码构建
 
