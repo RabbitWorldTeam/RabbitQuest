@@ -104,7 +104,6 @@ public final class EventService {
     }
 
     public static void registerCommands(RegisterCommandsEvent event) {
-        event.getDispatcher().register(eventActions(Commands.literal("rabbitquestevent")));
         LiteralArgumentBuilder<CommandSourceStack> sub = eventActions(Commands.literal("event"));
         if (event.getDispatcher().getRoot().getChild("rabbitquest")
                 instanceof com.mojang.brigadier.tree.LiteralCommandNode<CommandSourceStack> root) {
@@ -122,32 +121,26 @@ public final class EventService {
                     send(player, true, "", "");
                     return 1;
                 })
-                .then(Commands.literal("open").executes(context -> {
-                    ServerPlayer player = context.getSource().getPlayerOrException();
-                    send(player, true, "", "");
-                    return 1;
-                }))
                 .then(Commands.literal("status").requires(source -> source.hasPermission(2))
                         .executes(context -> status(context.getSource())))
-                .then(Commands.literal("admin").requires(source -> source.hasPermission(2))
-                        .then(Commands.literal("query")
-                                .then(Commands.argument("player", StringArgumentType.string())
-                                        .executes(context -> query(context.getSource(),
-                                                StringArgumentType.getString(context, "player")))))
-                        .then(Commands.literal("reset")
-                                .then(Commands.argument("player", StringArgumentType.string())
-                                        .then(Commands.argument("event", StringArgumentType.string())
-                                                .executes(context -> reset(context.getSource(),
+                .then(Commands.literal("query").requires(source -> source.hasPermission(2))
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .executes(context -> query(context.getSource(),
+                                        StringArgumentType.getString(context, "player")))))
+                .then(Commands.literal("reset").requires(source -> source.hasPermission(2))
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .then(Commands.argument("event", StringArgumentType.string())
+                                        .executes(context -> reset(context.getSource(),
+                                                StringArgumentType.getString(context, "player"),
+                                                StringArgumentType.getString(context, "event"))))))
+                .then(Commands.literal("reissue").requires(source -> source.hasPermission(2))
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .then(Commands.argument("event", StringArgumentType.string())
+                                        .then(Commands.argument("target", StringArgumentType.string())
+                                                .executes(context -> reissue(context.getSource(),
                                                         StringArgumentType.getString(context, "player"),
-                                                        StringArgumentType.getString(context, "event"))))))
-                        .then(Commands.literal("reissue")
-                                .then(Commands.argument("player", StringArgumentType.string())
-                                        .then(Commands.argument("event", StringArgumentType.string())
-                                                .then(Commands.argument("target", StringArgumentType.string())
-                                                        .executes(context -> reissue(context.getSource(),
-                                                                StringArgumentType.getString(context, "player"),
-                                                                StringArgumentType.getString(context, "event"),
-                                                                StringArgumentType.getString(context, "target"))))))));
+                                                        StringArgumentType.getString(context, "event"),
+                                                        StringArgumentType.getString(context, "target")))))));
     }
 
     public static void handle(ServerPlayer player, CompoundTag request) {

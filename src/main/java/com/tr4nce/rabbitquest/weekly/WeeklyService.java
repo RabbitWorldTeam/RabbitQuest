@@ -117,7 +117,6 @@ public final class WeeklyService {
     }
 
     public static void registerCommands(RegisterCommandsEvent event) {
-        event.getDispatcher().register(weeklyActions(Commands.literal("rabbitquestweekly")));
         LiteralArgumentBuilder<CommandSourceStack> weekly = weeklyActions(Commands.literal("weekly"));
         if (event.getDispatcher().getRoot().getChild("rabbitquest")
                 instanceof com.mojang.brigadier.tree.LiteralCommandNode<CommandSourceStack> root) {
@@ -135,42 +134,36 @@ public final class WeeklyService {
                     send(player, true, "", "");
                     return 1;
                 })
-                .then(Commands.literal("open").executes(context -> {
-                    ServerPlayer player = context.getSource().getPlayerOrException();
-                    send(player, true, "", "");
-                    return 1;
-                }))
                 .then(Commands.literal("status").requires(source -> source.hasPermission(2))
                         .executes(context -> status(context.getSource())))
-                .then(Commands.literal("admin").requires(source -> source.hasPermission(2))
-                        .then(Commands.literal("query")
-                                .then(Commands.argument("player", StringArgumentType.string())
-                                        .executes(context -> query(context.getSource(),
-                                                StringArgumentType.getString(context, "player")))))
-                        .then(Commands.literal("reset")
-                                .then(Commands.argument("player", StringArgumentType.string())
-                                        .then(Commands.argument("task", StringArgumentType.string())
+                .then(Commands.literal("query").requires(source -> source.hasPermission(2))
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .executes(context -> query(context.getSource(),
+                                        StringArgumentType.getString(context, "player")))))
+                .then(Commands.literal("reset").requires(source -> source.hasPermission(2))
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .then(Commands.argument("task", StringArgumentType.string())
+                                        .executes(context -> admin(context.getSource(),
+                                                StringArgumentType.getString(context, "player"),
+                                                StringArgumentType.getString(context, "task"), null, false))
+                                        .then(Commands.argument("week", StringArgumentType.string())
                                                 .executes(context -> admin(context.getSource(),
                                                         StringArgumentType.getString(context, "player"),
-                                                        StringArgumentType.getString(context, "task"), null, false))
-                                                .then(Commands.argument("week", StringArgumentType.string())
-                                                        .executes(context -> admin(context.getSource(),
-                                                                StringArgumentType.getString(context, "player"),
-                                                                StringArgumentType.getString(context, "task"),
-                                                                StringArgumentType.getString(context, "week"),
-                                                                false))))))
-                        .then(Commands.literal("reissue")
-                                .then(Commands.argument("player", StringArgumentType.string())
-                                        .then(Commands.argument("task", StringArgumentType.string())
+                                                        StringArgumentType.getString(context, "task"),
+                                                        StringArgumentType.getString(context, "week"),
+                                                        false))))))
+                .then(Commands.literal("reissue").requires(source -> source.hasPermission(2))
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .then(Commands.argument("task", StringArgumentType.string())
+                                        .executes(context -> admin(context.getSource(),
+                                                StringArgumentType.getString(context, "player"),
+                                                StringArgumentType.getString(context, "task"), null, true))
+                                        .then(Commands.argument("week", StringArgumentType.string())
                                                 .executes(context -> admin(context.getSource(),
                                                         StringArgumentType.getString(context, "player"),
-                                                        StringArgumentType.getString(context, "task"), null, true))
-                                                .then(Commands.argument("week", StringArgumentType.string())
-                                                        .executes(context -> admin(context.getSource(),
-                                                                StringArgumentType.getString(context, "player"),
-                                                                StringArgumentType.getString(context, "task"),
-                                                                StringArgumentType.getString(context, "week"),
-                                                                true)))))));
+                                                        StringArgumentType.getString(context, "task"),
+                                                        StringArgumentType.getString(context, "week"),
+                                                        true))))));
     }
 
     public static void handle(ServerPlayer player, CompoundTag request) {
