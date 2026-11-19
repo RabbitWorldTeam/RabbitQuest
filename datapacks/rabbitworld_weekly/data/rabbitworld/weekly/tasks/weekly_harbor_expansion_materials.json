@@ -1,0 +1,28 @@
+{
+  "id": "rabbitworld:weekly_harbor_expansion_materials",
+  "name": "港口扩建",
+  "description": "工程部订单：交付云杉木板、玻璃板和海晶灯。",
+  "icon": "minecraft:sea_lantern",
+  "order": 30,
+  "enabled": true,
+  "targets": [
+    {
+      "id": "rabbitworld:harbor_planks",
+      "kind": "DELIVER",
+      "amount": 128,
+      "resource": "minecraft:spruce_planks"
+    },
+    {
+      "id": "rabbitworld:harbor_panes",
+      "kind": "DELIVER",
+      "amount": 64,
+      "resource": "minecraft:glass_pane"
+    },
+    {
+      "id": "rabbitworld:harbor_lanterns",
+      "kind": "DELIVER",
+      "amount": 16,
+      "resource": "minecraft:sea_lantern"
+    }
+  ]
+}

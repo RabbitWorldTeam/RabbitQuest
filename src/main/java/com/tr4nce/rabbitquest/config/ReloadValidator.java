@@ -71,9 +71,10 @@ public final class ReloadValidator {
                         return ReloadResult.failed(0, taskId.toString(), targetKey,
                                 "cannot change DELIVER target kind with delivered items");
                     }
-                    if (prevTarget != null && !Objects.equals(prevTarget.resource(), nextTarget.resource())) {
+                    if (prevTarget != null && (!Objects.equals(prevTarget.resource(), nextTarget.resource())
+                            || !Objects.equals(prevTarget.potion(), nextTarget.potion()))) {
                         return ReloadResult.failed(0, taskId.toString(), targetKey,
-                                "cannot replace DELIVER target resource with delivered items");
+                                "cannot replace DELIVER target resource or potion with delivered items");
                     }
                 }
             }
@@ -135,9 +136,10 @@ public final class ReloadValidator {
                             return ReloadResult.failed(0, eventKey, targetKey,
                                     "cannot change DELIVER target kind with delivered items");
                         }
-                        if (prevTarget != null && !Objects.equals(prevTarget.resource(), nextTarget.resource())) {
+                        if (prevTarget != null && (!Objects.equals(prevTarget.resource(), nextTarget.resource())
+                                || !Objects.equals(prevTarget.potion(), nextTarget.potion()))) {
                             return ReloadResult.failed(0, eventKey, targetKey,
-                                    "cannot replace DELIVER target resource with delivered items");
+                                    "cannot replace DELIVER target resource or potion with delivered items");
                         }
                     }
                 }

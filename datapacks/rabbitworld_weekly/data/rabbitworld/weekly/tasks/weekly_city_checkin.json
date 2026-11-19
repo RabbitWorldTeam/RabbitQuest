@@ -1,0 +1,37 @@
+{
+  "id": "rabbitworld:weekly_city_checkin",
+  "name": "主城打卡",
+  "description": "前往主世界主城二楼，靠近坐标 (-24, 80, -1)。",
+  "icon": "minecraft:compass",
+  "order": 30,
+  "enabled": true,
+  "targets": [
+    {
+      "id": "rabbitworld:city_checkin",
+      "kind": "ARRIVAL",
+      "amount": 1,
+      "dimension": "minecraft:overworld",
+      "region": {
+        "max": [
+          -22,
+          82,
+          1
+        ],
+        "min": [
+          -25,
+          79,
+          -2
+        ]
+      }
+    }
+  ],
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "rabbitquest:building_material_voucher",
+        "count": 1
+      }
+    ]
+  }
+}

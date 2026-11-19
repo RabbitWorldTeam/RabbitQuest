@@ -1,0 +1,24 @@
+{
+  "id": "rabbitworld:weekly_steel_aim",
+  "name": "让我看看你钢铁般的左键",
+  "description": "本周累计对生物造成 2,048 点伤害。",
+  "icon": "minecraft:iron_sword",
+  "order": 40,
+  "enabled": true,
+  "targets": [
+    {
+      "id": "rabbitworld:combat_damage",
+      "kind": "DAMAGE",
+      "amount": 2048
+    }
+  ],
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "rabbitquest:weapon_tool_voucher",
+        "count": 1
+      }
+    ]
+  }
+}

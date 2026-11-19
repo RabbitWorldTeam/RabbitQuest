@@ -1,0 +1,61 @@
+{
+  "id": "rabbitworld:weekly_mystery_supplies",
+  "name": "神秘物资单",
+  "description": "按清单交付铜避雷针、橡木部件、红石和石砖。",
+  "icon": "minecraft:sheep_spawn_egg",
+  "order": 70,
+  "enabled": true,
+  "targets": [
+    {
+      "id": "rabbitworld:supply_rod",
+      "kind": "DELIVER",
+      "amount": 1,
+      "resource": "minecraft:lightning_rod"
+    },
+    {
+      "id": "rabbitworld:supply_planks",
+      "kind": "DELIVER",
+      "amount": 4,
+      "resource": "minecraft:oak_planks"
+    },
+    {
+      "id": "rabbitworld:supply_slab",
+      "kind": "DELIVER",
+      "amount": 1,
+      "resource": "minecraft:oak_slab"
+    },
+    {
+      "id": "rabbitworld:supply_boat",
+      "kind": "DELIVER",
+      "amount": 1,
+      "resource": "minecraft:oak_boat"
+    },
+    {
+      "id": "rabbitworld:supply_torches",
+      "kind": "DELIVER",
+      "amount": 2,
+      "resource": "minecraft:redstone_torch"
+    },
+    {
+      "id": "rabbitworld:supply_redstone",
+      "kind": "DELIVER",
+      "amount": 1,
+      "resource": "minecraft:redstone"
+    },
+    {
+      "id": "rabbitworld:supply_bricks",
+      "kind": "DELIVER",
+      "amount": 1,
+      "resource": "minecraft:chiseled_stone_bricks"
+    }
+  ],
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "rabbitquest:building_material_voucher",
+        "count": 1
+      }
+    ]
+  }
+}

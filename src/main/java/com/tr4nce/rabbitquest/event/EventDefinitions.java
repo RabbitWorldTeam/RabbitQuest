@@ -220,7 +220,9 @@ public final class EventDefinitions {
                     coordinate(box, "min", 2, id), coordinate(box, "max", 0, id), coordinate(box, "max", 1, id),
                     coordinate(box, "max", 2, id));
         }
-        return new WeeklyTarget(id, kind, resource, amount, dimension, region);
+        ResourceLocation potion = optionalIdentifier(json, "potion", id + " potion");
+        ResourceLocation biome = optionalIdentifier(json, "biome", id + " biome");
+        return new WeeklyTarget(id, kind, resource, amount, dimension, region, potion, biome);
     }
 
     private static WeeklyReward parseReward(JsonObject json) {
@@ -274,6 +276,7 @@ public final class EventDefinitions {
                     validateReward(step.reward(), "step " + step.id());
                 }
                 for (WeeklyTarget target : step.targets()) {
+                    target.validatePotion();
                     if (target.resource() == null) {
                         continue;
                     }
@@ -285,7 +288,7 @@ public final class EventDefinitions {
                             throw new EventConfigException("Unknown block " + target.resource()
                                     + " in target " + target.id());
                         }
-                    } else if (target.kind() == TargetKind.KILL) {
+                    } else if (target.kind() == TargetKind.KILL || target.kind() == TargetKind.DAMAGE) {
                         if (!BuiltInRegistries.ENTITY_TYPE.containsKey(target.resource())) {
                             throw new EventConfigException("Unknown entity type " + target.resource()
                                     + " in target " + target.id());

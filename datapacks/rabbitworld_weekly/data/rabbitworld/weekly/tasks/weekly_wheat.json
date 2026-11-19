@@ -1,0 +1,29 @@
+{
+  "id": "rabbitworld:weekly_wheat",
+  "name": "丰收交付",
+  "description": "交付 512 个小麦，可分批提交。",
+  "icon": "minecraft:wheat",
+  "order": 10,
+  "enabled": true,
+  "targets": [
+    {
+      "id": "rabbitworld:wheat",
+      "kind": "DELIVER",
+      "amount": 512,
+      "resource": "minecraft:wheat"
+    }
+  ],
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "rabbitquest:building_material_voucher",
+        "count": 1
+      },
+      {
+        "item": "minecraft:emerald",
+        "count": 16
+      }
+    ]
+  }
+}

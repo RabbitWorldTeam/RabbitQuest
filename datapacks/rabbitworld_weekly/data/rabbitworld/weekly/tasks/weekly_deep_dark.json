@@ -1,0 +1,26 @@
+{
+  "id": "rabbitworld:weekly_deep_dark",
+  "name": "深暗清剿",
+  "description": "累计对深暗之域内的监守者造成 250 点伤害，以监守者受击位置为准。",
+  "icon": "minecraft:echo_shard",
+  "order": 80,
+  "enabled": true,
+  "targets": [
+    {
+      "id": "rabbitworld:deep_dark_damage",
+      "kind": "DAMAGE",
+      "amount": 250,
+      "resource": "minecraft:warden",
+      "biome": "minecraft:deep_dark"
+    }
+  ],
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "minecraft:echo_shard",
+        "count": 4
+      }
+    ]
+  }
+}

@@ -10,7 +10,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NumericTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
@@ -103,6 +102,12 @@ final class EventEngine {
     static int record(EventSavedData data, UUID player, EventDefinitions definitions, Instant now,
                       TargetKind kind, ResourceLocation resource, double amount, ResourceLocation dimension,
                       Vec3 position, List<ItemStack> inventory) {
+        return record(data, player, definitions, now, kind, resource, amount, dimension, position, inventory, null);
+    }
+
+    static int record(EventSavedData data, UUID player, EventDefinitions definitions, Instant now,
+                      TargetKind kind, ResourceLocation resource, double amount, ResourceLocation dimension,
+                      Vec3 position, List<ItemStack> inventory, ResourceLocation biome) {
         if (!(amount > 0.0) || !Double.isFinite(amount) || kind == null
                 || kind == TargetKind.DELIVER && inventory == null) {
             return 0;
@@ -129,7 +134,7 @@ final class EventEngine {
                 CompoundTag steps = eventTag.getCompound("steps");
                 CompoundTag stepTag = steps.getCompound(step.id().toString());
                 CompoundTag progress = stepTag.getCompound("progress");
-                List<WeeklyTarget> matches = matchingTargets(step, kind, resource, dimension, position, progress);
+                List<WeeklyTarget> matches = matchingTargets(step, kind, resource, dimension, position, biome, progress);
                 if (matches.isEmpty()) {
                     continue;
                 }
@@ -146,7 +151,7 @@ final class EventEngine {
                 if (kind == TargetKind.DELIVER) {
                     WeeklyTarget target = matches.getFirst();
                     int remaining = remaining(target, progress);
-                    int added = removeItems(inventory, target.resource(),
+                    int added = target.takeDelivery(inventory,
                             Math.min((int) Math.floor(amount), remaining));
                     if (added > 0) {
                         putProgress(progress, target, progress(target, progress) + added);
@@ -281,7 +286,7 @@ final class EventEngine {
             return DeliverResult.failed("invalid");
         }
         int requestedAmount = requested == 0 ? remaining : Math.min(requested, remaining);
-        int removed = removeItems(inventory, target.resource(), requestedAmount);
+        int removed = target.takeDelivery(inventory, requestedAmount);
         if (removed <= 0) {
             return DeliverResult.failed("missing_items");
         }
@@ -552,10 +557,10 @@ final class EventEngine {
 
     private static List<WeeklyTarget> matchingTargets(EventStep step, TargetKind kind, ResourceLocation resource,
                                                       ResourceLocation dimension, Vec3 position,
-                                                      CompoundTag progress) {
+                                                      ResourceLocation biome, CompoundTag progress) {
         List<WeeklyTarget> result = new ArrayList<>();
         for (WeeklyTarget target : step.targets()) {
-            if (target.kind().accepts(kind) && target.matches(resource, dimension, position)
+            if (target.kind().accepts(kind) && target.matches(resource, dimension, position, biome)
                     && progress(target, progress) + 1.0E-9 < target.amount()) {
                 result.add(target);
             }
@@ -605,26 +610,6 @@ final class EventEngine {
         } else {
             progress.putInt(target.id().toString(), (int) Math.floor(clamped));
         }
-    }
-
-    private static int removeItems(List<ItemStack> inventory, ResourceLocation resource, int maximum) {
-        if (resource == null || maximum <= 0 || !BuiltInRegistries.ITEM.containsKey(resource)) {
-            return 0;
-        }
-        Item item = BuiltInRegistries.ITEM.get(resource);
-        int removed = 0;
-        for (ItemStack stack : inventory) {
-            if (stack.isEmpty() || stack.getItem() != item) {
-                continue;
-            }
-            int take = Math.min(stack.getCount(), maximum - removed);
-            stack.shrink(take);
-            removed += take;
-            if (removed == maximum) {
-                break;
-            }
-        }
-        return removed;
     }
 
     static void preserveUnlocks(EventDefinitions previous, EventDefinitions next, EventSavedData data, Instant now) {

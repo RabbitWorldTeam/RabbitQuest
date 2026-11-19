@@ -1,0 +1,29 @@
+{
+  "id": "rabbitworld:weekly_warden",
+  "name": "黑暗中的豪赌",
+  "description": "击杀 1 只监守者。",
+  "icon": "minecraft:warden_spawn_egg",
+  "order": 60,
+  "enabled": true,
+  "targets": [
+    {
+      "id": "rabbitworld:warden_kill",
+      "kind": "KILL",
+      "amount": 1,
+      "resource": "minecraft:warden"
+    }
+  ],
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "rabbitquest:weapon_tool_voucher",
+        "count": 1
+      },
+      {
+        "item": "minecraft:emerald",
+        "count": 16
+      }
+    ]
+  }
+}

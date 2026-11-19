@@ -1,0 +1,18 @@
+{
+  "id": "rabbitworld:weekly_platform_renovation",
+  "name": "站台翻新",
+  "description": "工程部订单：交付青色染色玻璃、淡灰色混凝土和铜灯。",
+  "icon": "minecraft:copper_bulb",
+  "order": 10,
+  "enabled": true,
+  "task": "rabbitworld:weekly_platform_renovation_materials",
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "rabbitquest:tool_voucher",
+        "count": 1
+      }
+    ]
+  }
+}

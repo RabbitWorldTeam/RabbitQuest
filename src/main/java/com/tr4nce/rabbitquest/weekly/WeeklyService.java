@@ -195,6 +195,11 @@ public final class WeeklyService {
      */
     public static int recordEvent(ServerPlayer player, TargetKind kind, ResourceLocation resource, double amount,
                                   ResourceKey<Level> dimension, Vec3 position) {
+        return recordEvent(player, kind, resource, amount, dimension, position, null);
+    }
+
+    public static int recordEvent(ServerPlayer player, TargetKind kind, ResourceLocation resource, double amount,
+                                  ResourceKey<Level> dimension, Vec3 position, ResourceLocation biome) {
         Runtime current = runtime;
         if (current == null || player == null || kind == null || !(amount > 0.0) || !Double.isFinite(amount)) {
             return 0;
@@ -207,7 +212,7 @@ public final class WeeklyService {
         Set<ResourceLocation> completedBefore = completedWeeklyIds(current, player.getUUID(), week);
         int added = WeeklyEngine.record(current.data(), player.getUUID(), current.definitions(), week, kind,
                 resource, amount, dimension == null ? null : dimension.location(), position,
-                player.getInventory().items, System.currentTimeMillis());
+                player.getInventory().items, System.currentTimeMillis(), biome);
         if (added > 0) {
             if (kind == TargetKind.DELIVER) {
                 player.getInventory().setChanged();

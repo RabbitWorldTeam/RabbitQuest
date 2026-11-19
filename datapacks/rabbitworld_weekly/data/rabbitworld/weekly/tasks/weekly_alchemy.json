@@ -1,0 +1,37 @@
+{
+  "id": "rabbitworld:weekly_alchemy",
+  "name": "拼尽全力无法战胜",
+  "description": "交付 16 支虚弱之箭和 4 瓶强效治疗药水。",
+  "icon": "minecraft:brewing_stand",
+  "order": 50,
+  "enabled": true,
+  "targets": [
+    {
+      "id": "rabbitworld:weakness_arrows",
+      "kind": "DELIVER",
+      "amount": 16,
+      "resource": "minecraft:tipped_arrow",
+      "potion": "minecraft:weakness"
+    },
+    {
+      "id": "rabbitworld:strong_healing",
+      "kind": "DELIVER",
+      "amount": 4,
+      "resource": "minecraft:potion",
+      "potion": "minecraft:strong_healing"
+    }
+  ],
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "rabbitquest:tool_voucher",
+        "count": 1
+      },
+      {
+        "item": "minecraft:emerald",
+        "count": 32
+      }
+    ]
+  }
+}

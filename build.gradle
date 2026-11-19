@@ -38,4 +38,9 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.12.2'
 }
 
-tasks.named('test', Test) { useJUnitPlatform() }
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    def weeklyPack = layout.projectDirectory.dir('datapacks/rabbitworld_weekly')
+    inputs.dir(weeklyPack)
+    systemProperty 'rabbitquest.test.weeklyPack', weeklyPack.asFile.absolutePath
+}

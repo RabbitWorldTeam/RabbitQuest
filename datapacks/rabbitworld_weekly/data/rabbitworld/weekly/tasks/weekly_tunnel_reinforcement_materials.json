@@ -1,0 +1,28 @@
+{
+  "id": "rabbitworld:weekly_tunnel_reinforcement_materials",
+  "name": "隧道加固",
+  "description": "工程部订单：交付深板岩砖、铁栏杆和石砖楼梯。",
+  "icon": "minecraft:deepslate_bricks",
+  "order": 20,
+  "enabled": true,
+  "targets": [
+    {
+      "id": "rabbitworld:tunnel_bricks",
+      "kind": "DELIVER",
+      "amount": 128,
+      "resource": "minecraft:deepslate_bricks"
+    },
+    {
+      "id": "rabbitworld:tunnel_bars",
+      "kind": "DELIVER",
+      "amount": 64,
+      "resource": "minecraft:iron_bars"
+    },
+    {
+      "id": "rabbitworld:tunnel_stairs",
+      "kind": "DELIVER",
+      "amount": 16,
+      "resource": "minecraft:stone_brick_stairs"
+    }
+  ]
+}

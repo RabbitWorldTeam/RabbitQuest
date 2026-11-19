@@ -6,7 +6,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NumericTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
@@ -132,6 +131,12 @@ final class WeeklyEngine {
     static int record(WeeklySavedData data, UUID player, WeeklyDefinitions definitions, LocalDate week,
                       TargetKind kind, ResourceLocation resource, double amount, ResourceLocation dimension,
                       Vec3 position, List<ItemStack> inventory, long now) {
+        return record(data, player, definitions, week, kind, resource, amount, dimension, position, inventory, now, null);
+    }
+
+    static int record(WeeklySavedData data, UUID player, WeeklyDefinitions definitions, LocalDate week,
+                      TargetKind kind, ResourceLocation resource, double amount, ResourceLocation dimension,
+                      Vec3 position, List<ItemStack> inventory, long now, ResourceLocation biome) {
         if (!(amount > 0.0) || !Double.isFinite(amount) || kind == null
                 || kind == TargetKind.DELIVER && inventory == null) {
             return 0;
@@ -143,7 +148,7 @@ final class WeeklyEngine {
                 continue;
             }
             CompoundTag progress = taskTag.getCompound("progress");
-            List<WeeklyTarget> matches = matchingTargets(active.task(), kind, resource, dimension, position, progress);
+            List<WeeklyTarget> matches = matchingTargets(active.task(), kind, resource, dimension, position, biome, progress);
             if (matches.isEmpty()) {
                 continue;
             }
@@ -157,7 +162,7 @@ final class WeeklyEngine {
                 // Legacy direct event path; the UI always delivers to an explicit target id.
                 WeeklyTarget target = matches.getFirst();
                 int remaining = remaining(target, progress);
-                int added = removeItems(inventory, target.resource(),
+                int added = target.takeDelivery(inventory,
                         Math.min((int) Math.floor(amount), remaining));
                 if (added > 0) {
                     putProgress(progress, target, progress(target, progress) + added);
@@ -259,7 +264,7 @@ final class WeeklyEngine {
             return DeliverResult.failed("invalid");
         }
         int requestedAmount = requested == 0 ? remaining : Math.min(requested, remaining);
-        int removed = removeItems(inventory, target.resource(), requestedAmount);
+        int removed = target.takeDelivery(inventory, requestedAmount);
         if (removed <= 0) {
             return DeliverResult.failed("missing_items");
         }
@@ -527,10 +532,10 @@ final class WeeklyEngine {
 
     private static List<WeeklyTarget> matchingTargets(WeeklyTaskDefinition task, TargetKind kind,
                                                       ResourceLocation resource, ResourceLocation dimension,
-                                                      Vec3 position, CompoundTag progress) {
+                                                      Vec3 position, ResourceLocation biome, CompoundTag progress) {
         List<WeeklyTarget> result = new ArrayList<>();
         for (WeeklyTarget target : task.targets()) {
-            if (target.kind().accepts(kind) && target.matches(resource, dimension, position)
+            if (target.kind().accepts(kind) && target.matches(resource, dimension, position, biome)
                     && progress(target, progress) + 1.0E-9 < target.amount()) {
                 result.add(target);
             }
@@ -599,26 +604,6 @@ final class WeeklyEngine {
         }
         long hash = UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)).getMostSignificantBits();
         return (int) Math.floorMod(hash, (long) bound);
-    }
-
-    private static int removeItems(List<ItemStack> inventory, ResourceLocation resource, int maximum) {
-        if (resource == null || maximum <= 0 || !BuiltInRegistries.ITEM.containsKey(resource)) {
-            return 0;
-        }
-        Item item = BuiltInRegistries.ITEM.get(resource);
-        int removed = 0;
-        for (ItemStack stack : inventory) {
-            if (stack.isEmpty() || stack.getItem() != item) {
-                continue;
-            }
-            int take = Math.min(stack.getCount(), maximum - removed);
-            stack.shrink(take);
-            removed += take;
-            if (removed == maximum) {
-                break;
-            }
-        }
-        return removed;
     }
 
     static void reconcileThresholds(WeeklyDefinitions definitions, WeeklySavedData data, LocalDate currentWeek,

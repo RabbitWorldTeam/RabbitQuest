@@ -1,11 +1,18 @@
 package com.tr4nce.rabbitquest.weekly;
 
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
+import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +24,43 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WeeklyDefinitionsTest {
+    @Test
+    void rabbitWorldPackLoadsWithPersonalTasksAndPreservesPotionAndBiomeConditions() throws IOException {
+        Path root = Path.of(System.getProperty("rabbitquest.test.weeklyPack")).resolve("data/rabbitworld/weekly");
+        WeeklyDefinitions definitions = WeeklyDefinitions.parse(WeeklyCycle.DEFAULT,
+                readPackFolder(root.resolve("tasks")), readPackFolder(root.resolve("orders")));
+        definitions.validateRegistry();
+        assertEquals(8, definitions.ordinaryTasks().size());
+        assertEquals(List.of("rabbitworld:weekly_platform_renovation", "rabbitworld:weekly_tunnel_reinforcement",
+                        "rabbitworld:weekly_harbor_expansion"),
+                definitions.enabledOrders().stream().map(order -> order.id().toString()).toList());
+
+        WeeklyTarget arrows = definitions.task(ResourceLocation.parse("rabbitworld:weekly_alchemy")).targets().getFirst();
+        var wrong = PotionContents.createItemStack(Items.TIPPED_ARROW, Potions.POISON);
+        var right = PotionContents.createItemStack(Items.TIPPED_ARROW, Potions.WEAKNESS);
+        right.setCount(2);
+        assertEquals(1, arrows.takeDelivery(List.of(wrong, right, new ItemStack(Items.ARROW)), 1));
+        assertEquals(1, wrong.getCount());
+        assertEquals(1, right.getCount());
+
+        WeeklyTarget danger = definitions.task(ResourceLocation.parse("rabbitworld:weekly_deep_dark"))
+                .targets().getFirst();
+        var warden = ResourceLocation.parse("minecraft:warden");
+        var overworld = ResourceLocation.parse("minecraft:overworld");
+        assertFalse(danger.matches(warden, overworld, Vec3.ZERO, ResourceLocation.parse("minecraft:plains")));
+        assertTrue(danger.matches(warden, overworld, Vec3.ZERO, ResourceLocation.parse("minecraft:deep_dark")));
+    }
+
+    private static Map<String, String> readPackFolder(Path folder) throws IOException {
+        Map<String, String> files = new LinkedHashMap<>();
+        try (var paths = Files.list(folder)) {
+            for (Path path : paths.toList()) {
+                files.put(path.getFileName().toString(), Files.readString(path));
+            }
+        }
+        return files;
+    }
+
     @Test
     void shippedSamplesParseAndStayDisabled() throws IOException {
         Map<String, String> tasks = new LinkedHashMap<>();

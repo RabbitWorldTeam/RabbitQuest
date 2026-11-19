@@ -16,6 +16,8 @@ import com.tr4nce.rabbitquest.storage.RecoveryService;
 import com.tr4nce.rabbitquest.weekly.TargetKind;
 import com.tr4nce.rabbitquest.weekly.TaskEventListeners;
 import com.tr4nce.rabbitquest.weekly.WeeklyService;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -61,9 +63,16 @@ public final class RabbitQuest {
             case DAMAGE -> TargetKind.DAMAGE;
         };
         Vec3 pos = Vec3.atCenterOf(action.position());
+        ResourceLocation biome = null;
+        if (kind == TargetKind.DAMAGE) {
+            var level = action.player().getServer().getLevel(action.dimension());
+            if (level != null) {
+                biome = level.getBiome(action.position()).unwrapKey().map(ResourceKey::location).orElse(null);
+            }
+        }
         WeeklyService.recordEvent(action.player(), kind, action.target(), action.amount(),
-                action.dimension(), pos);
+                action.dimension(), pos, biome);
         EventService.recordEvent(action.player(), kind, action.target(), action.amount(),
-                action.dimension(), pos);
+                action.dimension(), pos, biome);
     }
 }

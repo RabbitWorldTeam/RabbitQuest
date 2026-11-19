@@ -248,7 +248,9 @@ public final class WeeklyDefinitions {
                     coordinate(box, "min", 2, id), coordinate(box, "max", 0, id), coordinate(box, "max", 1, id),
                     coordinate(box, "max", 2, id));
         }
-        return new WeeklyTarget(id, kind, resource, amount, dimension, region);
+        ResourceLocation potion = optionalIdentifier(json, "potion", id + " potion");
+        ResourceLocation biome = optionalIdentifier(json, "biome", id + " biome");
+        return new WeeklyTarget(id, kind, resource, amount, dimension, region, potion, biome);
     }
 
     private static EngineeringOrder parseOrder(JsonObject json) {
@@ -305,13 +307,14 @@ public final class WeeklyDefinitions {
                 integer(json, "count", 0));
     }
 
-    private void validateRegistry() {
+    void validateRegistry() {
         for (WeeklyTaskDefinition task : tasks.values()) {
             requireItem(task.icon(), "icon of task " + task.id());
             if (task.reward() != null) {
                 validateReward(task.reward(), "task " + task.id());
             }
             for (WeeklyTarget target : task.targets()) {
+                target.validatePotion();
                 if (target.resource() == null) {
                     continue;
                 }
@@ -323,7 +326,7 @@ public final class WeeklyDefinitions {
                         throw new WeeklyConfigException("Unknown block " + target.resource()
                                 + " in target " + target.id());
                     }
-                } else if (target.kind() == TargetKind.KILL) {
+                } else if (target.kind() == TargetKind.KILL || target.kind() == TargetKind.DAMAGE) {
                     if (!BuiltInRegistries.ENTITY_TYPE.containsKey(target.resource())) {
                         throw new WeeklyConfigException("Unknown entity type " + target.resource()
                                 + " in target " + target.id());

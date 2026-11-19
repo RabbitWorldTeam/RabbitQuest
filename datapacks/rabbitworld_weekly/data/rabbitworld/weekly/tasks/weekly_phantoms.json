@@ -1,0 +1,25 @@
+{
+  "id": "rabbitworld:weekly_phantoms",
+  "name": "幻翼高手",
+  "description": "本周击杀 24 只幻翼。",
+  "icon": "minecraft:phantom_spawn_egg",
+  "order": 20,
+  "enabled": true,
+  "targets": [
+    {
+      "id": "rabbitworld:phantoms",
+      "kind": "KILL",
+      "amount": 24,
+      "resource": "minecraft:phantom"
+    }
+  ],
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "rabbitquest:weapon_tool_voucher",
+        "count": 1
+      }
+    ]
+  }
+}

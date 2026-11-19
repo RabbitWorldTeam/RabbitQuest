@@ -1,0 +1,18 @@
+{
+  "id": "rabbitworld:weekly_harbor_expansion",
+  "name": "港口扩建",
+  "description": "工程部订单：交付云杉木板、玻璃板和海晶灯。",
+  "icon": "minecraft:sea_lantern",
+  "order": 30,
+  "enabled": true,
+  "task": "rabbitworld:weekly_harbor_expansion_materials",
+  "reward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "item": "rabbitquest:tool_voucher",
+        "count": 1
+      }
+    ]
+  }
+}
