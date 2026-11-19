@@ -186,7 +186,11 @@ final class WeeklyEngine {
                     }
                     double next = Math.min(target.amount(), current + added);
                     putProgress(progress, target, next);
-                    accepted += (int) Math.floor(next - current + 1.0E-9);
+                    if (kind == TargetKind.TRAVEL) {
+                        accepted += (int) Math.floor(next + 1.0E-9) - (int) Math.floor(current + 1.0E-9);
+                    } else {
+                        accepted += (int) Math.floor(next - current + 1.0E-9);
+                    }
                     changed = true;
                 }
             }
@@ -526,7 +530,7 @@ final class WeeklyEngine {
                                                       Vec3 position, CompoundTag progress) {
         List<WeeklyTarget> result = new ArrayList<>();
         for (WeeklyTarget target : task.targets()) {
-            if (target.kind() == kind && target.matches(resource, dimension, position)
+            if (target.kind().accepts(kind) && target.matches(resource, dimension, position)
                     && progress(target, progress) + 1.0E-9 < target.amount()) {
                 result.add(target);
             }

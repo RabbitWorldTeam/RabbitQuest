@@ -12,6 +12,7 @@ import com.tr4nce.rabbitquest.stats.Action;
 import com.tr4nce.rabbitquest.stats.StatsService;
 import com.tr4nce.rabbitquest.storage.RecoveryService;
 import com.tr4nce.rabbitquest.weekly.TargetKind;
+import com.tr4nce.rabbitquest.weekly.TaskEventListeners;
 import com.tr4nce.rabbitquest.weekly.WeeklyService;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.IEventBus;
@@ -29,6 +30,7 @@ public final class RabbitQuest {
         modEventBus.addListener(EventNetwork::register);
         modEventBus.addListener(QuestBookNetwork::register);
         StatsService.register();
+        TaskEventListeners.register(NeoForge.EVENT_BUS);
         StatsService.setEventSink(RabbitQuest::forwardStat);
         NeoForge.EVENT_BUS.addListener(RecoveryService::serverStarted);
         NeoForge.EVENT_BUS.addListener(RecoveryService::serverStopped);
@@ -50,7 +52,7 @@ public final class RabbitQuest {
 
     private static void forwardStat(Action action) {
         TargetKind kind = switch (action.type()) {
-            case HARVEST -> TargetKind.HARVEST;
+            case HARVEST -> action.matureCrop() ? TargetKind.MATURE_HARVEST : TargetKind.HARVEST;
             case KILL -> TargetKind.KILL;
             case DAMAGE -> TargetKind.DAMAGE;
         };

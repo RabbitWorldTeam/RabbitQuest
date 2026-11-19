@@ -16,6 +16,9 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.GameProfileCache;
+import net.minecraft.world.level.block.CocoaBlock;
+import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.NetherWartBlock;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.neoforged.bus.api.EventPriority;
@@ -182,8 +185,12 @@ public final class StatsService {
                 || !(event.getLevel() instanceof ServerLevel level)) {
             return;
         }
-        ResourceLocation block = BuiltInRegistries.BLOCK.getKey(event.getState().getBlock());
-        record(new Action(player, ActionType.HARVEST, block, 1.0, level.dimension(), event.getPos()));
+        var state = event.getState();
+        boolean mature = state.getBlock() instanceof CropBlock crop && crop.isMaxAge(state)
+                || state.getBlock() instanceof NetherWartBlock && state.getValue(NetherWartBlock.AGE) == 3
+                || state.getBlock() instanceof CocoaBlock && state.getValue(CocoaBlock.AGE) == 2;
+        ResourceLocation block = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        record(new Action(player, ActionType.HARVEST, block, 1.0, level.dimension(), event.getPos(), mature));
     }
 
     private static void onLivingDeath(LivingDeathEvent event) {

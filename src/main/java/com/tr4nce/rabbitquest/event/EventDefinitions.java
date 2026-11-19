@@ -178,6 +178,12 @@ public final class EventDefinitions {
     private static WeeklyTarget parseTarget(JsonObject json, ResourceLocation stepId) {
         ResourceLocation id = identifier(json, "id", "target in " + stepId);
         TargetKind kind = TargetKind.parse(string(json, "kind", null, id + " kind"));
+        if (kind == TargetKind.MATURE_HARVEST || json.has("matureOnly") && kind != TargetKind.HARVEST) {
+            throw new WeeklyConfigException("Target " + id + " must use matureOnly with HARVEST");
+        }
+        if (kind == TargetKind.HARVEST && bool(json, "matureOnly", false)) {
+            kind = TargetKind.MATURE_HARVEST;
+        }
         ResourceLocation resource = optionalIdentifier(json, "resource", id + " resource");
         int amount = integer(json, "amount", 0);
         if (amount <= 0) {
@@ -251,8 +257,14 @@ public final class EventDefinitions {
                     if (target.resource() == null) {
                         continue;
                     }
-                    if (target.kind() == TargetKind.DELIVER || target.kind() == TargetKind.HARVEST) {
+                    if (target.kind() == TargetKind.DELIVER || target.kind() == TargetKind.HARVEST
+                            || target.kind() == TargetKind.CRAFT || target.kind() == TargetKind.FISH) {
                         requireItem(target.resource(), target.kind() + " resource of target " + target.id());
+                    } else if (target.kind() == TargetKind.MATURE_HARVEST) {
+                        if (!BuiltInRegistries.BLOCK.containsKey(target.resource())) {
+                            throw new EventConfigException("Unknown block " + target.resource()
+                                    + " in target " + target.id());
+                        }
                     } else if (target.kind() == TargetKind.KILL) {
                         if (!BuiltInRegistries.ENTITY_TYPE.containsKey(target.resource())) {
                             throw new EventConfigException("Unknown entity type " + target.resource()

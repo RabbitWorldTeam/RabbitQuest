@@ -22,6 +22,9 @@ public record WeeklyTarget(ResourceLocation id, TargetKind kind, ResourceLocatio
         if (amount <= 0) {
             throw new WeeklyConfigException("Target " + id + " must have a positive amount");
         }
+        if (kind == TargetKind.TRAVEL && resource != null) {
+            throw new WeeklyConfigException("TRAVEL target " + id + " does not accept a resource");
+        }
         if (kind == TargetKind.ARRIVAL && amount != 1) {
             throw new WeeklyConfigException("ARRIVAL target " + id + " must have amount 1");
         }
@@ -29,7 +32,7 @@ public record WeeklyTarget(ResourceLocation id, TargetKind kind, ResourceLocatio
 
     /** True when this objective stores fractional event amounts. */
     public boolean fractional() {
-        return kind == TargetKind.DAMAGE;
+        return kind == TargetKind.DAMAGE || kind == TargetKind.TRAVEL;
     }
 
     public boolean matches(ResourceLocation incomingResource, ResourceLocation incomingDimension, Vec3 position) {

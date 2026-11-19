@@ -9,7 +9,12 @@ import net.minecraft.world.level.Level;
 import java.util.Objects;
 
 public record Action(ServerPlayer player, ActionType type, ResourceLocation target, double amount,
-                     ResourceKey<Level> dimension, BlockPos position) {
+                     ResourceKey<Level> dimension, BlockPos position, boolean matureCrop) {
+    public Action(ServerPlayer player, ActionType type, ResourceLocation target, double amount,
+                  ResourceKey<Level> dimension, BlockPos position) {
+        this(player, type, target, amount, dimension, position, false);
+    }
+
     public Action {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(type, "type");

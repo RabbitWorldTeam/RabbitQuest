@@ -121,6 +121,31 @@ class WeeklyEventTest {
                 .getList("items", net.minecraft.nbt.Tag.TAG_COMPOUND).getCompound(0).getString("item"));
     }
 
+    @Test
+    void matureHarvestAlsoCountsForGeneralHarvestAndFractionalTravelCanCompleteTheTask() {
+        ResourceLocation wheat = ResourceLocation.parse("minecraft:wheat");
+        WeeklyTaskDefinition task = task("rabbitquest:fieldwork", null,
+                new WeeklyTarget(ResourceLocation.parse("rabbitquest:harvest"), TargetKind.HARVEST,
+                        wheat, 2, OVERWORLD, null),
+                new WeeklyTarget(ResourceLocation.parse("rabbitquest:ripe"), TargetKind.MATURE_HARVEST,
+                        wheat, 1, OVERWORLD, null),
+                new WeeklyTarget(ResourceLocation.parse("rabbitquest:walk"), TargetKind.TRAVEL,
+                        null, 1, OVERWORLD, null));
+        WeeklyDefinitions definitions = definitions(task, null);
+        WeeklySavedData data = new WeeklySavedData();
+
+        assertEquals(1, record(data, definitions, TargetKind.HARVEST, wheat, 1.0, OVERWORLD));
+        assertEquals(0.0, progress(data, task, "rabbitquest:ripe"));
+        assertEquals(2, record(data, definitions, TargetKind.MATURE_HARVEST, wheat, 1.0, OVERWORLD));
+        assertEquals(0, record(data, definitions, TargetKind.TRAVEL, null, 1.0, NETHER));
+        assertEquals(0, record(data, definitions, TargetKind.TRAVEL, null, 0.4, OVERWORLD));
+        assertEquals(0.4, progress(data, task, "rabbitquest:walk"), 1.0E-9);
+        assertFalse(taskTag(data, task).getBoolean("completed"));
+
+        assertEquals(1, record(data, definitions, TargetKind.TRAVEL, null, 0.6, OVERWORLD));
+        assertTrue(taskTag(data, task).getBoolean("completed"));
+    }
+
     private static int record(WeeklySavedData data, WeeklyDefinitions definitions, TargetKind kind,
                               ResourceLocation resource, double amount, ResourceLocation dimension) {
         return WeeklyEngine.record(data, PLAYER, definitions, WEEK, kind, resource, amount, dimension,

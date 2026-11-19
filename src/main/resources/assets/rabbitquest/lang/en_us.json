@@ -1,4 +1,8 @@
 {
+  "rabbitquest.weekly.kind.mature_harvest": "Harvest mature crops",
+  "rabbitquest.weekly.kind.craft": "Craft items",
+  "rabbitquest.weekly.kind.fish": "Catch items",
+  "rabbitquest.weekly.kind.travel": "Travel on foot (blocks)",
   "rabbitquest.shop.search": "Search products",
   "rabbitquest.shop.clear_search": "Clear search",
   "rabbitquest.shop.no_matches": "No matching products",

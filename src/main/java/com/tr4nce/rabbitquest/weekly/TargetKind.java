@@ -4,10 +4,18 @@ package com.tr4nce.rabbitquest.weekly;
 public enum TargetKind {
     DELIVER,
     HARVEST,
+    MATURE_HARVEST,
+    CRAFT,
+    FISH,
+    TRAVEL,
     KILL,
     DAMAGE,
     ARRIVAL,
     CUSTOM;
+
+    public boolean accepts(TargetKind action) {
+        return this == action || this == HARVEST && action == MATURE_HARVEST;
+    }
 
     public static TargetKind parse(String value) {
         try {

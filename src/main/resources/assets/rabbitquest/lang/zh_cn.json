@@ -1,4 +1,8 @@
 {
+  "rabbitquest.weekly.kind.mature_harvest": "采收成熟作物",
+  "rabbitquest.weekly.kind.craft": "合成物品",
+  "rabbitquest.weekly.kind.fish": "钓获物品",
+  "rabbitquest.weekly.kind.travel": "徒步行进（格）",
   "rabbitquest.shop.search": "搜索商品",
   "rabbitquest.shop.clear_search": "清空搜索",
   "rabbitquest.shop.no_matches": "没有匹配的商品",

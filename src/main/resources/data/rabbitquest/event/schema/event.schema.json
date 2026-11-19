@@ -44,7 +44,8 @@
               "required": ["id", "kind", "amount"],
               "properties": {
                 "id": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$" },
-                "kind": { "type": "string", "enum": ["DELIVER", "HARVEST", "KILL", "DAMAGE", "ARRIVAL", "CUSTOM"] },
+                "kind": { "type": "string", "enum": ["DELIVER", "HARVEST", "KILL", "DAMAGE", "ARRIVAL", "CUSTOM", "CRAFT", "FISH", "TRAVEL"] },
+                "matureOnly": { "type": "boolean", "default": false },
                 "resource": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$" },
                 "amount": { "type": "integer", "minimum": 1 },
                 "dimension": { "type": "string", "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$" },
