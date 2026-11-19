@@ -44,6 +44,10 @@ final class EventScreen extends Screen {
     private String selectedEvent = "";
     private int completionSelection;
     private int scroll;
+    private int browseScroll;
+    private boolean rewardsOnly;
+
+    record Position(String selected, int scroll, int browseScroll, boolean rewardsOnly) {}
     private int left;
     private int top;
     private int panelWidth;
@@ -55,6 +59,19 @@ final class EventScreen extends Screen {
     EventScreen(CompoundTag snapshot) {
         super(label("title"));
         this.snapshot = snapshot;
+        Position position = QuestBookClient.eventPosition;
+        if (position != null) {
+            selectedEvent = position.selected();
+            scroll = position.scroll();
+            browseScroll = position.browseScroll();
+            rewardsOnly = position.rewardsOnly();
+        }
+    }
+
+    @Override
+    public void removed() {
+        QuestBookClient.eventPosition = new Position(selectedEvent, scroll, browseScroll, rewardsOnly);
+        super.removed();
     }
 
     void receive(CompoundTag incoming) {
@@ -83,7 +100,11 @@ final class EventScreen extends Screen {
             selectedEvent = first;
             completionSelection = 0;
             stepSelections.clear();
-            scroll = 0;
+            if (rewardsOnly) {
+                browseScroll = 0;
+            } else {
+                scroll = 0;
+            }
         }
         rebuild();
     }
@@ -94,7 +115,7 @@ final class EventScreen extends Screen {
         panelHeight = Math.min(height - 12, 330);
         left = BookmarkTabs.GUTTER + (width - BookmarkTabs.GUTTER - panelWidth) / 2;
         top = (height - panelHeight) / 2;
-        contentTop = top + 32;
+        contentTop = top + 54;
         contentBottom = top + panelHeight - 52;
         contentWidth = panelWidth - 18;
         captions.clear();
@@ -108,21 +129,42 @@ final class EventScreen extends Screen {
                 .active = pendingRequest.isEmpty();
         addButton(label("close"), left + panelWidth - 80, top + panelHeight - 25, 73, this::onClose);
 
-        buildRows();
+        int claimable = QuestBookClient.badge(QuestBookClient.Tab.EVENTS);
+        Component rewardFilter = rewardsOnly ? Component.translatable("rabbitquest.rewards.back")
+                : Component.translatable("rabbitquest.rewards.available", claimable);
+        addButton(rewardFilter, left + 7, top + 29, panelWidth - 14, this::toggleRewards)
+                .active = pendingRequest.isEmpty() && (rewardsOnly || claimable > 0);
+
+        if (rewardsOnly) {
+            buildRewardList();
+        } else {
+            buildRows();
+        }
         int capacity = capacity();
         scroll = Mth.clamp(scroll, 0, Math.max(0, rows.size() - capacity));
         for (int index = scroll; index < Math.min(scroll + capacity, rows.size()); index++) {
             rows.get(index).accept(contentTop + (index - scroll) * ROW_HEIGHT);
         }
         if (rows.size() > capacity) {
-            addButton(label("up"), left + panelWidth - 22, top + 32, 14, () -> scrollBy(-1))
+            addButton(label("up"), left + panelWidth - 22, contentTop, 14, () -> scrollBy(-1))
                     .active = scroll > 0 && pendingRequest.isEmpty();
-            addButton(label("down"), left + panelWidth - 22, top + 54, 14, () -> scrollBy(1))
+            addButton(label("down"), left + panelWidth - 22, contentTop + ROW_HEIGHT, 14, () -> scrollBy(1))
                     .active = scroll + capacity < rows.size() && pendingRequest.isEmpty();
         }
         if (!message.isEmpty()) {
             caption(text(message), left + 7, top + panelHeight - 19, panelWidth - 90);
         }
+    }
+
+    private void toggleRewards() {
+        if (rewardsOnly) {
+            scroll = browseScroll;
+        } else {
+            browseScroll = scroll;
+            scroll = 0;
+        }
+        rewardsOnly = !rewardsOnly;
+        rebuild();
     }
 
     private void buildRows() {
@@ -181,6 +223,33 @@ final class EventScreen extends Screen {
             buildStepRows(event, step, phase);
         }
 
+        buildCompletionReward(event);
+    }
+
+    private void buildRewardList() {
+        for (Tag eventTag : list(snapshot, "events")) {
+            CompoundTag event = (CompoundTag) eventTag;
+            int firstReward = rows.size();
+            for (Tag stepTag : list(event, "steps")) {
+                CompoundTag step = (CompoundTag) stepTag;
+                if (step.getBoolean("claimable")) {
+                    textRow(display(step, "step"));
+                    buildStepReward(event, step);
+                }
+            }
+            if (event.getBoolean("completionClaimable")) {
+                buildCompletionReward(event);
+            }
+            if (rows.size() > firstReward) {
+                rows.add(firstReward, y -> caption(display(event, "event"), left + 7, y + 6, contentWidth));
+            }
+        }
+        if (rows.isEmpty()) {
+            textRow(Component.translatable("rabbitquest.rewards.empty"));
+        }
+    }
+
+    private void buildCompletionReward(CompoundTag event) {
         if (event.getBoolean("hasCompletionReward")) {
             rows.add(y -> caption(label("completion_reward"), left + 7, y + 6, contentWidth));
             CompoundTag reward = event.getCompound("completionReward");
@@ -267,6 +336,10 @@ final class EventScreen extends Screen {
             }
         }
 
+        buildStepReward(event, step);
+    }
+
+    private void buildStepReward(CompoundTag event, CompoundTag step) {
         boolean isChoice = false;
         if (step.contains("reward", Tag.TAG_COMPOUND)) {
             CompoundTag reward = step.getCompound("reward");

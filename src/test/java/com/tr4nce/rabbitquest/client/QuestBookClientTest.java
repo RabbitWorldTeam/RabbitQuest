@@ -10,18 +10,13 @@ class QuestBookClientTest {
     @Test
     void computesWeeklyAndEventClaimableBadges() {
         CompoundTag weekly = new CompoundTag();
-        ListTag tasks = new ListTag();
-        CompoundTag t1 = new CompoundTag();
-        t1.putBoolean("claimable", true);
-        CompoundTag t2 = new CompoundTag();
-        t2.putBoolean("claimable", false);
-        tasks.add(t1);
-        tasks.add(t2);
-        weekly.put("tasks", tasks);
         ListTag claims = new ListTag();
         CompoundTag prevClaim = new CompoundTag();
         prevClaim.putBoolean("current", false);
         claims.add(prevClaim);
+        CompoundTag currentClaim = new CompoundTag();
+        currentClaim.putBoolean("current", true);
+        claims.add(currentClaim);
         weekly.put("claims", claims);
 
         QuestBookClient.updateWeeklyBadges(weekly);

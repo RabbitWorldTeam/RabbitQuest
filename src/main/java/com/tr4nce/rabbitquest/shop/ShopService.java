@@ -327,10 +327,15 @@ public final class ShopService {
         for (Tag tag : data.products) {
             CompoundTag product = (CompoundTag) tag;
             boolean available = available(data, product, now);
-            if (admin || available) {
+            boolean listed = listed(data, product);
+            if (admin || listed) {
                 CompoundTag view = product.copy();
                 CompoundTag counter = counters.getCompound(view.getString("id"));
                 view.putBoolean("available", available);
+                if (!available && listed) {
+                    view.putString("windowStatus", product.contains("start")
+                            && now.getEpochSecond() < product.getLong("start") ? "upcoming" : "ended");
+                }
                 view.putInt("purchased", (int) Math.min(counter.getLong("total"), Integer.MAX_VALUE));
                 view.putInt("weeklyPurchased", weeklyPurchases(counter, week));
                 products.add(view);
@@ -360,10 +365,14 @@ public final class ShopService {
         return limit > 0 && purchased > (long) limit - amount;
     }
 
-    private static boolean available(ShopSavedData data, CompoundTag product, Instant now) {
+    private static boolean listed(ShopSavedData data, CompoundTag product) {
         CompoundTag category = ShopSavedData.find(data.categories, product.getString("category"));
+        return category != null && category.getBoolean("visible") && product.getBoolean("enabled");
+    }
+
+    private static boolean available(ShopSavedData data, CompoundTag product, Instant now) {
         long second = now.getEpochSecond();
-        return category != null && category.getBoolean("visible") && product.getBoolean("enabled")
+        return listed(data, product)
                 && (!product.contains("start") || second >= product.getLong("start"))
                 && (!product.contains("end") || second < product.getLong("end"));
     }

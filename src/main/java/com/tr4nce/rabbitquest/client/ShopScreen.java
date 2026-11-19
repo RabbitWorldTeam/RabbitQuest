@@ -2,11 +2,16 @@ package com.tr4nce.rabbitquest.client;
 
 import com.tr4nce.rabbitquest.client.ShopDraft.Section;
 import com.tr4nce.rabbitquest.network.ShopNetwork;
+import com.tr4nce.rabbitquest.shop.TradeInventory;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.client.gui.GuiGraphics;
@@ -32,14 +37,26 @@ final class ShopScreen extends Screen {
     private static final int TEXT_COLOR = 0xFF3F3F3F;
     private static final int DIVIDER_COLOR = 0xFF8B8478;
 
-    private enum View { SHOP, PRODUCTS, CATEGORIES }
+    enum View { SHOP, PRODUCTS, CATEGORIES }
+
+    record Position(View view, String selection, int listScroll, int detailScroll,
+                    Set<String> expanded, String search, String previousSelection,
+                    int previousListScroll, int previousDetailScroll) {}
+
+    private record CatalogRow(CompoundTag entry, boolean category, boolean expanded, int count) {}
 
     private final List<Caption> captions = new ArrayList<>();
     private final List<Icon> icons = new ArrayList<>();
     private final List<Consumer<Integer>> detailRows = new ArrayList<>();
     private CompoundTag snapshot;
     private View view = View.SHOP;
-    private String categoryFilter = "";
+    private final Set<String> expandedCategories = new LinkedHashSet<>();
+    private boolean categoriesInitialized;
+    private String search = "";
+    private EditBox searchBox;
+    private String previousSelection = "";
+    private int previousListScroll;
+    private int previousDetailScroll;
     private String selection = "";
     private String message = "";
     private String pendingRequest = "";
@@ -60,13 +77,38 @@ final class ShopScreen extends Screen {
     private int detailTop;
     private int detailsBottom;
     private ShopDraft draft;
+    private Runnable confirmLeave;
+    private Runnable leaveAfterSave;
     private Consumer<Integer> sampleTarget;
     private int scrollBeforeSample;
     private int editOption;
+    private int inventoryCheckTicks;
+    private List<ItemStack> lastInventory = List.of();
 
     ShopScreen(CompoundTag snapshot) {
         super(label("title"));
         this.snapshot = snapshot;
+        Position position = QuestBookClient.shopPosition;
+        if (position != null && (position.view() == View.SHOP || snapshot.getBoolean("admin"))) {
+            view = position.view();
+            expandedCategories.addAll(position.expanded());
+            categoriesInitialized = true;
+            search = position.search();
+            previousSelection = position.previousSelection();
+            previousListScroll = position.previousListScroll();
+            previousDetailScroll = position.previousDetailScroll();
+            selection = position.selection();
+            leftScroll = position.listScroll();
+            detailScroll = position.detailScroll();
+        }
+    }
+
+    @Override
+    public void removed() {
+        int browsingScroll = draft == null ? detailScroll : 0;
+        QuestBookClient.shopPosition = new Position(view, selection, leftScroll, browsingScroll,
+                Set.copyOf(expandedCategories), search, previousSelection, previousListScroll, previousDetailScroll);
+        super.removed();
     }
 
     void receive(CompoundTag incoming) {
@@ -74,6 +116,8 @@ final class ShopScreen extends Screen {
         String result = incoming.getString("message");
         String reply = incoming.getString("requestId");
         if (!result.isEmpty() && !pendingRequest.isEmpty() && reply.equals(pendingRequest)) {
+            Runnable afterSave = leaveAfterSave;
+            leaveAfterSave = null;
             String action = pendingAction;
             pendingRequest = "";
             pendingAction = "";
@@ -87,6 +131,12 @@ final class ShopScreen extends Screen {
                     draft = null;
                     sampleTarget = null;
                     detailScroll = 0;
+                }
+                if (afterSave != null) {
+                    afterSave.run();
+                    if (minecraft.screen != this) {
+                        return;
+                    }
                 }
             } else {
                 QuestBookClient.playSound(SoundEvents.VILLAGER_NO, 0.4F, 1.0F);
@@ -102,6 +152,9 @@ final class ShopScreen extends Screen {
         }
         if (!snapshot.getBoolean("admin") && view != View.SHOP) {
             pendingRequest = "";
+            pendingAction = "";
+            confirmLeave = null;
+            discardDraft();
             switchView(View.SHOP);
             return;
         }
@@ -123,18 +176,24 @@ final class ShopScreen extends Screen {
         captions.clear();
         icons.clear();
         detailRows.clear();
+        searchBox = null;
 
         if (!snapshot.getBoolean("admin")) {
             view = View.SHOP;
         }
-        addButton(label("title"), left + 7, top + 6, listWidth - 7, () -> switchView(View.SHOP))
+        if (confirmLeave != null) {
+            buildLeavePrompt();
+            return;
+        }
+
+        addButton(label("title"), left + 7, top + 6, listWidth - 7, () -> leaveEditor(() -> switchView(View.SHOP)))
                 .active = view != View.SHOP;
         if (snapshot.getBoolean("admin")) {
             int half = (detailWidth - 4) / 2;
-            addButton(label("products"), detailX, top + 6, half, () -> switchView(View.PRODUCTS))
+            addButton(label("products"), detailX, top + 6, half, () -> leaveEditor(() -> switchView(View.PRODUCTS)))
                     .active = view != View.PRODUCTS;
             addButton(label("categories"), detailX + half + 4, top + 6, detailWidth - half - 4,
-                    () -> switchView(View.CATEGORIES)).active = view != View.CATEGORIES;
+                    () -> leaveEditor(() -> switchView(View.CATEGORIES))).active = view != View.CATEGORIES;
         }
 
         buildList();
@@ -165,46 +224,49 @@ final class ShopScreen extends Screen {
     }
 
     private void buildList() {
-        List<CompoundTag> entries = entries();
-        leftCount = entries.size();
+        List<CatalogRow> rows;
+        if (view == View.SHOP) {
+            int clearWidth = 20;
+            searchBox = input("search", search, left + 7, top + 29, listWidth - 11 - clearWidth,
+                    96, this::updateSearch);
+            searchBox.setHint(label("search"));
+            Button clear = addButton(Component.literal("×"), left + listWidth - clearWidth, top + 29,
+                    clearWidth, () -> {
+                        updateSearch("");
+                        focusSearch(0);
+                    });
+            clear.setTooltip(Tooltip.create(label("clear_search")));
+            clear.active = !search.isEmpty() && pendingRequest.isEmpty();
+            rows = catalogRows();
+        } else {
+            String key = view == View.CATEGORIES ? "categories" : "products";
+            rows = sortedEntries(key).stream().map(entry -> new CatalogRow(entry, false, false, 0)).toList();
+            addButton(label("new"), left + 7, top + 29, listWidth - 7, () -> leaveEditor(this::newDraft))
+                    .active = pendingRequest.isEmpty();
+        }
+
+        leftCount = rows.size();
         leftScroll = Mth.clamp(leftScroll, 0, Math.max(0, leftCount - leftCapacity()));
-        if (entries.stream().noneMatch(entry -> entry.getString("id").equals(selection))) {
-            String replacement = entries.isEmpty() ? "" : entries.getFirst().getString("id");
+        boolean selectedInList = rows.stream()
+                .anyMatch(row -> !row.category() && row.entry().getString("id").equals(selection));
+        boolean retainCollapsedSelection = view == View.SHOP && search.isBlank() && isListedProduct(selection);
+        if (!selectedInList && !retainCollapsedSelection) {
+            String replacement = view == View.SHOP ? "" : rows.isEmpty() ? "" : rows.getFirst().entry().getString("id");
             if (!selection.equals(replacement) && draft == null) {
-                quantity = "1";
-                rewardOption = 0;
-                detailScroll = 0;
+                resetDetails();
             }
             selection = replacement;
         }
 
-        if (view == View.SHOP) {
-            CompoundTag category = find(list(snapshot, "categories"), categoryFilter);
-            Component filter = categoryFilter.isEmpty()
-                    ? label("all_categories") : Component.literal(category.getString("name"));
-            addButton(filter, left + 7, top + 29, listWidth - 7, this::nextCategory);
-        } else {
-            addButton(label("new"), left + 7, top + 29, listWidth - 7, this::newDraft)
-                    .active = pendingRequest.isEmpty();
-        }
-
-        for (int i = leftScroll; i < Math.min(leftCount, leftScroll + leftCapacity()); i++) {
-            CompoundTag entry = entries.get(i);
-            String id = entry.getString("id");
-            int y = listTop + (i - leftScroll) * ROW_HEIGHT;
-            boolean hasIcon = !decode(entry.getCompound("icon")).isEmpty();
-            Button row = addButton(Component.literal(entry.getString("name")), left + (hasIcon ? 26 : 7), y,
-                    listWidth - (hasIcon ? 26 : 7), () -> select(id));
-            row.active = !selection.equals(id) && pendingRequest.isEmpty();
-            if (hasIcon) {
-                icon(entry.getCompound("icon"), left + 7, y + 2, 0);
-            }
+        int lastRow = Math.min(leftCount, leftScroll + leftCapacity());
+        for (int i = leftScroll; i < lastRow; i++) {
+            renderCatalogRow(rows.get(i), listTop + (i - leftScroll) * ROW_HEIGHT);
         }
         if (leftCount == 0) {
-            caption(label("empty"), left + 7, listTop + 6, listWidth - 7);
+            caption(label(search.isBlank() || view != View.SHOP ? "empty" : "no_matches"),
+                    left + 7, listTop + 6, listWidth - 7);
         }
         if (leftCount > leftCapacity()) {
-            int lastRow = Math.min(leftCount, leftScroll + leftCapacity());
             int footerY = detailsBottom + 3;
             addButton(label("up"), left + 7, footerY, 14, () -> scrollList(-1))
                     .active = leftScroll > 0 && pendingRequest.isEmpty();
@@ -214,25 +276,158 @@ final class ShopScreen extends Screen {
         }
     }
 
-    private List<CompoundTag> entries() {
-        String key = view == View.CATEGORIES ? "categories" : "products";
-        List<CompoundTag> result = new ArrayList<>();
+    private List<CompoundTag> sortedEntries(String key) {
+        List<CompoundTag> entries = new ArrayList<>();
         for (Tag entry : list(snapshot, key)) {
-            CompoundTag item = (CompoundTag) entry;
-            if (view != View.SHOP || (categoryFilter.isEmpty() || categoryFilter.equals(item.getString("category")))) {
-                if (view != View.SHOP || visibleInShop(item)) {
-                    result.add(item);
+            entries.add((CompoundTag) entry);
+        }
+        entries.sort(Comparator.comparingInt((CompoundTag entry) -> entry.getInt("order"))
+                .thenComparing(entry -> entry.getString("id")));
+        return entries;
+    }
+
+    private boolean isListedProduct(String id) {
+        CompoundTag product = find(list(snapshot, "products"), id);
+        return product.getBoolean("enabled")
+                && find(list(snapshot, "categories"), product.getString("category")).getBoolean("visible");
+    }
+
+    private List<CatalogRow> catalogRows() {
+        boolean searching = !search.isBlank();
+        String[] terms = search.strip().toLowerCase(Locale.ROOT).split("\\s+");
+        var productsByCategory = new LinkedHashMap<String, List<CompoundTag>>();
+        for (CompoundTag product : sortedEntries("products")) {
+            if (!product.getBoolean("enabled")) {
+                continue;
+            }
+            String text = (product.getString("name") + " " + product.getString("description") + " "
+                    + product.getString("id")).toLowerCase(Locale.ROOT);
+            if (!searching || Arrays.stream(terms).allMatch(text::contains)) {
+                productsByCategory.computeIfAbsent(product.getString("category"), key -> new ArrayList<>()).add(product);
+            }
+        }
+        List<CatalogRow> rows = new ArrayList<>();
+        for (CompoundTag category : sortedEntries("categories")) {
+            String id = category.getString("id");
+            List<CompoundTag> products = productsByCategory.get(id);
+            if (!category.getBoolean("visible") || products == null) {
+                continue;
+            }
+            if (!categoriesInitialized && !searching) {
+                categoriesInitialized = true;
+                expandedCategories.add(id);
+                if (selection.isEmpty()) {
+                    selection = products.getFirst().getString("id");
+                }
+            }
+            boolean expanded = searching || expandedCategories.contains(id);
+            rows.add(new CatalogRow(category, true, expanded, products.size()));
+            if (expanded) {
+                for (CompoundTag product : products) {
+                    rows.add(new CatalogRow(product, false, false, 0));
                 }
             }
         }
-        result.sort(Comparator.comparingInt((CompoundTag entry) -> entry.getInt("order"))
-                .thenComparing(entry -> entry.getString("id")));
-        return result;
+        return rows;
     }
 
-    private boolean visibleInShop(CompoundTag product) {
-        CompoundTag category = find(list(snapshot, "categories"), product.getString("category"));
-        return product.getBoolean("available") && category.getBoolean("visible");
+    private void renderCatalogRow(CatalogRow row, int y) {
+        CompoundTag entry = row.entry();
+        String id = entry.getString("id");
+        String name = entry.getString("name");
+        if (row.category()) {
+            Component heading = label(row.expanded() ? "category_expanded" : "category_collapsed", name, row.count());
+            addButton(heading, left + 7, y, listWidth - 7, () -> {
+                if (!expandedCategories.remove(id)) {
+                    expandedCategories.add(id);
+                }
+                rebuild();
+            }).active = search.isBlank() && pendingRequest.isEmpty();
+            return;
+        }
+
+        boolean playerShop = view == View.SHOP;
+        boolean hasIcon = !decode(entry.getCompound("icon")).isEmpty();
+        int offset = (playerShop ? 7 : 0) + (hasIcon ? 26 : 7);
+        int width = listWidth - offset;
+        Component title = Component.literal(name);
+        Component tooltip = title;
+        if (playerShop) {
+            Component status = label("status." + purchaseStatus(entry));
+            tooltip = Component.literal(name + " · ").append(status);
+            String suffix = " · " + status.getString();
+            int nameWidth = width - 8 - font.width(suffix);
+            if (nameWidth > 8) {
+                title = Component.literal(font.plainSubstrByWidth(name, nameWidth) + suffix);
+            }
+        }
+        Button button = addButton(title, left + offset, y, width, () -> leaveEditor(() -> select(id)));
+        button.active = !selection.equals(id) && pendingRequest.isEmpty();
+        if (playerShop) {
+            button.setTooltip(Tooltip.create(tooltip));
+        }
+        if (hasIcon) {
+            icon(entry.getCompound("icon"), left + offset - 19, y + 2, 0);
+        }
+    }
+
+    private String purchaseStatus(CompoundTag entry) {
+        if (!entry.getBoolean("available")) {
+            String window = entry.getString("windowStatus");
+            return window.isEmpty() ? "unavailable" : window;
+        }
+        if (entry.getInt("stock") == 0) {
+            return "sold_out";
+        }
+        if (entry.getInt("weeklyLimit") > 0 && entry.getInt("weeklyPurchased") >= entry.getInt("weeklyLimit")) {
+            return "weekly_limit";
+        }
+        if (entry.getInt("totalLimit") > 0 && entry.getInt("purchased") >= entry.getInt("totalLimit")) {
+            return "total_limit";
+        }
+        if (minecraft.player != null) {
+            List<TradeInventory.Cost> costs = new ArrayList<>();
+            for (Tag tag : list(entry, "costs")) {
+                CompoundTag cost = (CompoundTag) tag;
+                costs.add(new TradeInventory.Cost(decode(cost.getCompound("item")), cost.getInt("count"),
+                        cost.getBoolean("exact")));
+            }
+            if (TradeInventory.plan(minecraft.player.getInventory().items, costs, List.of(), 1).failure()
+                    == TradeInventory.Failure.MISSING_COST) {
+                return "missing_cost";
+            }
+        }
+        return "available";
+    }
+
+    private void updateSearch(String value) {
+        int cursor = searchBox.getCursorPosition();
+        boolean wasSearching = !search.isBlank();
+        search = value;
+        if (!wasSearching && !search.isBlank()) {
+            previousSelection = selection;
+            previousListScroll = leftScroll;
+            previousDetailScroll = detailScroll;
+            selection = "";
+            resetDetails();
+        }
+        if (search.isBlank() && wasSearching) {
+            selection = previousSelection;
+            resetDetails();
+            leftScroll = previousListScroll;
+            detailScroll = previousDetailScroll;
+        } else if (!search.isBlank()) {
+            leftScroll = 0;
+        }
+        rebuild();
+        focusSearch(cursor);
+    }
+
+    private void focusSearch(int cursor) {
+        if (searchBox != null) {
+            setFocused(searchBox);
+            searchBox.setCursorPosition(Mth.clamp(cursor, 0, search.length()));
+        }
     }
 
     private void buildDetails() {
@@ -311,10 +506,13 @@ final class ShopScreen extends Screen {
             EditBox amount = input("amount", quantity, detailX, footerY, inputWidth, 9, value -> quantity = value);
             amount.setFilter(value -> value.chars().allMatch(Character::isDigit));
         }
-        boolean available = !entry.contains("available") || entry.getBoolean("available");
+        String status = purchaseStatus(entry);
+        if (!status.equals("available")) {
+            caption(label("status." + status), detailX, top + 45, detailWidth);
+        }
         addButton(label("buy"), detailX + (inputWidth == 0 ? 0 : inputWidth + 4), footerY,
                 detailWidth - (inputWidth == 0 ? 0 : inputWidth + 4), () -> buy(entry))
-                .active = available && !options.isEmpty() && pendingRequest.isEmpty();
+                .active = status.equals("available") && !options.isEmpty() && pendingRequest.isEmpty();
     }
 
     private void adminActions(CompoundTag entry) {
@@ -582,38 +780,24 @@ final class ShopScreen extends Screen {
         }
         view = newView;
         selection = "";
-        categoryFilter = "";
+        search = "";
         leftScroll = 0;
         select("");
     }
 
     private void select(String id) {
         selection = id;
-        quantity = "1";
-        rewardOption = 0;
-        detailScroll = 0;
+        resetDetails();
         draft = null;
         sampleTarget = null;
-        message = "";
         rebuild();
     }
 
-    private void nextCategory() {
-        if (!pendingRequest.isEmpty()) {
-            return;
-        }
-        List<CompoundTag> categories = new ArrayList<>();
-        for (Tag tag : list(snapshot, "categories")) {
-            CompoundTag category = (CompoundTag) tag;
-            if (category.getBoolean("visible")) {
-                categories.add(category);
-            }
-        }
-        categories.sort(Comparator.comparingInt((CompoundTag category) -> category.getInt("order"))
-                .thenComparing(category -> category.getString("id")));
-        categoryFilter = nextId(categories, categoryFilter);
-        leftScroll = 0;
-        select("");
+    private void resetDetails() {
+        quantity = "1";
+        rewardOption = 0;
+        detailScroll = 0;
+        message = "";
     }
 
     private void chooseProductCategory() {
@@ -677,11 +861,6 @@ final class ShopScreen extends Screen {
             }
         }
         draft = new ShopDraft(view == View.CATEGORIES, existing, id, entry, snapshot.getLong("revision"));
-        // Support freshly opened or saved entries with an absent optional collection.
-        if (!draft.category) {
-            draft.data.put("costs", list(draft.data, "costs"));
-            draft.data.put("options", list(draft.data, "options"));
-        }
         editOption = 0;
         detailScroll = 0;
         message = "";
@@ -694,10 +873,75 @@ final class ShopScreen extends Screen {
         rebuild();
     }
 
+    @Override
+    public void onClose() {
+        if (confirmLeave != null) {
+            confirmLeave = null;
+            rebuild();
+        } else {
+            leaveEditor(super::onClose);
+        }
+    }
+
+    boolean hasProtectedDraft() {
+        return draft != null && (!pendingRequest.isEmpty() || draft.isDirty());
+    }
+
+    void leaveEditor(Runnable action) {
+        if (!pendingRequest.isEmpty() && draft != null) {
+            return;
+        }
+        if (draft != null && draft.isDirty()) {
+            confirmLeave = action;
+            rebuild();
+        } else {
+            discardDraft();
+            action.run();
+            if (minecraft.screen == this) {
+                rebuild();
+            }
+        }
+    }
+
+    private void buildLeavePrompt() {
+        int x = left + 12;
+        int y = top + 20;
+        int buttonWidth = panelWidth - 24;
+        caption(label("unsaved"), x, y, buttonWidth);
+        addButton(label("save"), x, y + ROW_HEIGHT, buttonWidth, () -> {
+            Runnable action = confirmLeave;
+            confirmLeave = null;
+            save();
+            if (!pendingRequest.isEmpty()) {
+                leaveAfterSave = action;
+            }
+        }).active = !draft.conflicted;
+        addButton(label("discard"), x, y + 2 * ROW_HEIGHT, buttonWidth, () -> {
+            Runnable action = confirmLeave;
+            confirmLeave = null;
+            discardDraft();
+            action.run();
+            if (minecraft.screen == this) {
+                rebuild();
+            }
+        });
+        addButton(label("continue_editing"), x, y + 3 * ROW_HEIGHT, buttonWidth, this::onClose);
+    }
+
+    private void discardDraft() {
+        if (draft != null) {
+            draft = null;
+            sampleTarget = null;
+            detailScroll = 0;
+        }
+    }
+
     private void cancelEdit() {
-        draft = null;
+        leaveEditor(this::finishCancel);
+    }
+
+    private void finishCancel() {
         message = "";
-        detailScroll = 0;
         rebuild();
     }
 
@@ -776,9 +1020,26 @@ final class ShopScreen extends Screen {
         return Math.max(1, (detailsBottom - detailTop) / ROW_HEIGHT);
     }
 
+    @Override
+    public void tick() {
+        if (view != View.SHOP || minecraft.player == null || ++inventoryCheckTicks < 10) {
+            return;
+        }
+        inventoryCheckTicks = 0;
+        List<ItemStack> inventory = minecraft.player.getInventory().items;
+        if (!ItemStack.listMatches(lastInventory, inventory)) {
+            lastInventory = inventory.stream().map(ItemStack::copy).toList();
+            rebuild();
+        }
+    }
+
     private void rebuild() {
         if (minecraft != null) {
+            int cursor = searchBox != null && getFocused() == searchBox ? searchBox.getCursorPosition() : -1;
             rebuildWidgets();
+            if (cursor >= 0) {
+                focusSearch(cursor);
+            }
         }
     }
 
@@ -800,6 +1061,9 @@ final class ShopScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
+        if (confirmLeave != null) {
+            return false;
+        }
         if (mouseY >= listTop && mouseY < detailsBottom && vertical != 0) {
             int step = vertical > 0 ? -1 : 1;
             if (mouseX >= left && mouseX < detailX) {

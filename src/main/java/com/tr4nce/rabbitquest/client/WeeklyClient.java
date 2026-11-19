@@ -25,7 +25,8 @@ public final class WeeklyClient {
         QuestBookClient.updateWeeklyBadges(snapshot);
         if (client.screen instanceof WeeklyScreen weekly) {
             weekly.receive(snapshot);
-        } else if (snapshot.getBoolean("open")) {
+        } else if (snapshot.getBoolean("open")
+                && !(client.screen instanceof ShopScreen shop && shop.hasProtectedDraft())) {
             QuestBookClient.remember(QuestBookClient.Tab.WEEKLY);
             client.setScreen(new WeeklyScreen(snapshot));
         }

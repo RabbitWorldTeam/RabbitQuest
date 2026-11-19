@@ -16,6 +16,8 @@ final class ShopDraft {
     final boolean existing;
     final CompoundTag data;
     private final CompoundTag original;
+    private final String originalId;
+    private final CompoundTag initialData;
     private final IdentityHashMap<CompoundTag, String> counts = new IdentityHashMap<>();
     long baseRevision;
     boolean conflicted;
@@ -33,8 +35,14 @@ final class ShopDraft {
         this.category = category;
         this.existing = existing;
         this.id = id;
+        this.originalId = id;
         this.original = original;
         this.data = original.copy();
+        if (!category) {
+            data.put("costs", list(data, "costs"));
+            data.put("options", list(data, "options"));
+        }
+        this.initialData = data.copy();
         this.baseRevision = baseRevision;
         order = Integer.toString(data.getInt("order"));
         start = date(data, "start");
@@ -52,6 +60,38 @@ final class ShopDraft {
 
     void setCount(CompoundTag row, String value) {
         counts.put(row, value);
+    }
+
+    boolean isDirty() {
+        if (!id.equals(originalId) || !data.equals(initialData)
+                || !order.equals(Integer.toString(original.getInt("order")))
+                || !start.equals(date(original, "start")) || !end.equals(date(original, "end"))
+                || !totalLimit.equals(Integer.toString(original.getInt("totalLimit")))
+                || !weeklyLimit.equals(Integer.toString(original.getInt("weeklyLimit")))
+                || !stock.equals(Integer.toString(original.getInt("stock")))) {
+            return true;
+        }
+        if (changedCounts(list(data, "costs"))) {
+            return true;
+        }
+        for (Tag option : list(data, "options")) {
+            if (changedCounts(list((CompoundTag) option, "items"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean changedCounts(ListTag rows) {
+        for (Tag tag : rows) {
+            CompoundTag row = (CompoundTag) tag;
+            int count = row.contains("rewardCount") ? row.getInt("rewardCount")
+                    : (row.contains("count") ? row.getInt("count") : 1);
+            if (!count(row).equals(Integer.toString(count))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     String normalizedId() {

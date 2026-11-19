@@ -40,6 +40,10 @@ final class WeeklyScreen extends Screen {
     private String pendingAction = "";
     private String selectedTask = "";
     private int scroll;
+    private int browseScroll;
+    private boolean rewardsOnly;
+
+    record Position(String selected, int scroll, int browseScroll, boolean rewardsOnly) {}
     private int selection;
     private int left;
     private int top;
@@ -52,6 +56,20 @@ final class WeeklyScreen extends Screen {
     WeeklyScreen(CompoundTag snapshot) {
         super(label("title"));
         this.snapshot = snapshot;
+        Position position = QuestBookClient.weeklyPosition;
+        if (position != null) {
+            selectedTask = position.selected();
+            scroll = position.scroll();
+            browseScroll = position.browseScroll();
+            rewardsOnly = position.rewardsOnly();
+        }
+        restoreTaskSelection();
+    }
+
+    @Override
+    public void removed() {
+        QuestBookClient.weeklyPosition = new Position(selectedTask, scroll, browseScroll, rewardsOnly);
+        super.removed();
     }
 
     void receive(CompoundTag incoming) {
@@ -72,13 +90,20 @@ final class WeeklyScreen extends Screen {
                 QuestBookClient.playSound(SoundEvents.VILLAGER_NO, 0.4F, 1.0F);
             }
         }
-        String first = firstTaskId(incoming);
-        if (!hasTask(incoming, selectedTask)) {
-            selectedTask = first;
-            selection = 0;
-            scroll = 0;
-        }
+        restoreTaskSelection();
         rebuild();
+    }
+
+    private void restoreTaskSelection() {
+        if (!hasTask(snapshot, selectedTask)) {
+            selectedTask = firstTaskId(snapshot);
+            selection = 0;
+            if (rewardsOnly) {
+                browseScroll = 0;
+            } else {
+                scroll = 0;
+            }
+        }
     }
 
     @Override
@@ -87,7 +112,7 @@ final class WeeklyScreen extends Screen {
         panelHeight = Math.min(height - 12, 330);
         left = BookmarkTabs.GUTTER + (width - BookmarkTabs.GUTTER - panelWidth) / 2;
         top = (height - panelHeight) / 2;
-        contentTop = top + 32;
+        contentTop = top + 54;
         contentBottom = top + panelHeight - 52;
         contentWidth = panelWidth - 18;
         captions.clear();
@@ -101,21 +126,42 @@ final class WeeklyScreen extends Screen {
                 .active = pendingRequest.isEmpty();
         addButton(label("close"), left + panelWidth - 80, top + panelHeight - 25, 73, this::onClose);
 
-        buildRows();
+        int claimable = QuestBookClient.badge(QuestBookClient.Tab.WEEKLY);
+        Component rewardFilter = rewardsOnly ? Component.translatable("rabbitquest.rewards.back")
+                : Component.translatable("rabbitquest.rewards.available", claimable);
+        addButton(rewardFilter, left + 7, top + 29, panelWidth - 14, this::toggleRewards)
+                .active = pendingRequest.isEmpty() && (rewardsOnly || claimable > 0);
+
+        if (rewardsOnly) {
+            buildRewardList();
+        } else {
+            buildRows();
+        }
         int capacity = capacity();
         scroll = Mth.clamp(scroll, 0, Math.max(0, rows.size() - capacity));
         for (int index = scroll; index < Math.min(scroll + capacity, rows.size()); index++) {
             rows.get(index).accept(contentTop + (index - scroll) * ROW_HEIGHT);
         }
         if (rows.size() > capacity) {
-            addButton(label("up"), left + panelWidth - 22, top + 32, 14, () -> scrollBy(-1))
+            addButton(label("up"), left + panelWidth - 22, contentTop, 14, () -> scrollBy(-1))
                     .active = scroll > 0 && pendingRequest.isEmpty();
-            addButton(label("down"), left + panelWidth - 22, top + 54, 14, () -> scrollBy(1))
+            addButton(label("down"), left + panelWidth - 22, contentTop + ROW_HEIGHT, 14, () -> scrollBy(1))
                     .active = scroll + capacity < rows.size() && pendingRequest.isEmpty();
         }
         if (!message.isEmpty()) {
             caption(text(message), left + 7, top + panelHeight - 19, panelWidth - 90);
         }
+    }
+
+    private void toggleRewards() {
+        if (rewardsOnly) {
+            scroll = browseScroll;
+        } else {
+            browseScroll = scroll;
+            scroll = 0;
+        }
+        rewardsOnly = !rewardsOnly;
+        rebuild();
     }
 
     private void buildRows() {
@@ -126,7 +172,7 @@ final class WeeklyScreen extends Screen {
         ListTag tasks = list(snapshot, "tasks");
         if (tasks.isEmpty()) {
             textRow(label("no_order"));
-            buildClaims();
+            buildClaims(false);
             return;
         }
         if (tasks.size() > 1) {
@@ -140,7 +186,7 @@ final class WeeklyScreen extends Screen {
         CompoundTag task = selectedTaskTag();
         if (task == null) {
             textRow(label("no_order"));
-            buildClaims();
+            buildClaims(false);
             return;
         }
 
@@ -226,24 +272,34 @@ final class WeeklyScreen extends Screen {
             }
         }
 
-        buildClaims();
+        buildClaims(false);
     }
 
-    private void buildClaims() {
+    private void buildRewardList() {
+        buildClaims(true);
+        if (rows.isEmpty()) {
+            textRow(Component.translatable("rabbitquest.rewards.empty"));
+        }
+    }
+
+    private void buildClaims(boolean includeCurrent) {
         ListTag claims = snapshot.getList("claims", Tag.TAG_COMPOUND);
         if (claims.isEmpty()) {
             return;
         }
-        textRow(label("claims"));
+        int firstClaim = rows.size();
         for (Tag tag : claims) {
             CompoundTag claim = (CompoundTag) tag;
-            if (claim.getBoolean("current")) {
+            if (!includeCurrent && claim.getBoolean("current")) {
                 continue;
             }
             Component claimName = claim.getString("nameKey").isBlank()
                     ? Component.literal(claim.getString("name"))
                     : Component.translatable(claim.getString("nameKey"));
-            rows.add(y -> caption(label("claim_line", claim.getString("cycle"), claimName),
+            Component orderName = display(claim, "order");
+            Component title = orderName.getString().isBlank() ? claimName
+                    : orderName.copy().append(" · ").append(claimName);
+            rows.add(y -> caption(label("claim_line", claim.getString("cycle"), title),
                     left + 7, y + 6, contentWidth));
             CompoundTag reward = claim.getCompound("reward");
             String mode = reward.getString("mode");
@@ -251,20 +307,20 @@ final class WeeklyScreen extends Screen {
             if (mode.equals("CHOICE")) {
                 for (int index = 0; index < groups.size(); index++) {
                     int group = index;
-                    rows.add(y -> {
-                        caption(rewardText(reward, group), left + 7, y + 6, contentWidth - 78);
-                        addButton(label("claim"), left + panelWidth - 79, y, 72, () -> claim(claim, group))
-                                .active = pendingRequest.isEmpty();
-                    });
+                    textRow(label("option_label", group + 1));
+                    buildClaimGroup(claim, groups.getCompound(group).getList("items", Tag.TAG_COMPOUND), group);
                 }
             } else {
                 int group = mode.equals("WEIGHTED") ? claim.getInt("rewardGroup") : 0;
-                rows.add(y -> {
-                    caption(rewardText(reward, group), left + 7, y + 6, contentWidth - 78);
-                    addButton(label("claim"), left + panelWidth - 79, y, 72, () -> claim(claim, group))
-                            .active = pendingRequest.isEmpty();
-                });
+                ListTag items = mode.equals("WEIGHTED")
+                        ? groups.getCompound(Mth.clamp(group, 0, Math.max(0, groups.size() - 1)))
+                                .getList("items", Tag.TAG_COMPOUND)
+                        : reward.getList("items", Tag.TAG_COMPOUND);
+                buildClaimGroup(claim, items, group);
             }
+        }
+        if (!includeCurrent && rows.size() > firstClaim) {
+            rows.add(firstClaim, y -> caption(label("claims"), left + 7, y + 6, contentWidth));
         }
     }
 
@@ -306,22 +362,12 @@ final class WeeklyScreen extends Screen {
         return text.isEmpty() ? "0" : text;
     }
 
-    private Component rewardText(CompoundTag reward, int group) {
-        String mode = reward.getString("mode");
-        ListTag items = mode.equals("FIXED")
-                ? reward.getList("items", Tag.TAG_COMPOUND)
-                : reward.getList("groups", Tag.TAG_COMPOUND).getCompound(Mth.clamp(group, 0,
-                Math.max(0, reward.getList("groups", Tag.TAG_COMPOUND).size() - 1)))
-                .getList("items", Tag.TAG_COMPOUND);
-        StringBuilder text = new StringBuilder();
-        for (Tag tag : items) {
-            CompoundTag item = (CompoundTag) tag;
-            if (text.length() > 0) {
-                text.append(", ");
-            }
-            text.append(item.getString("item")).append(" × ").append(item.getInt("count"));
+    private void buildClaimGroup(CompoundTag claim, ListTag items, int group) {
+        for (Tag item : items) {
+            rewardRow((CompoundTag) item);
         }
-        return Component.literal(text.toString());
+        rows.add(y -> addButton(label("claim"), left + 7, y, contentWidth, () -> claim(claim, group))
+                .active = pendingRequest.isEmpty());
     }
 
     private void selectTask(CompoundTag task) {

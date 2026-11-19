@@ -27,6 +27,9 @@ public final class QuestBookClient {
     }
 
     private static Tab lastTab = Tab.WEEKLY;
+    static ShopScreen.Position shopPosition;
+    static WeeklyScreen.Position weeklyPosition;
+    static EventScreen.Position eventPosition;
     private static int weeklyClaimable;
     private static int eventClaimable;
 
@@ -53,18 +56,7 @@ public final class QuestBookClient {
     }
 
     public static void updateWeeklyBadges(CompoundTag snapshot) {
-        int count = 0;
-        for (Tag tag : snapshot.getList("tasks", Tag.TAG_COMPOUND)) {
-            if (((CompoundTag) tag).getBoolean("claimable")) {
-                count++;
-            }
-        }
-        for (Tag tag : snapshot.getList("claims", Tag.TAG_COMPOUND)) {
-            if (!((CompoundTag) tag).getBoolean("current")) {
-                count++;
-            }
-        }
-        weeklyClaimable = count;
+        weeklyClaimable = snapshot.getList("claims", Tag.TAG_COMPOUND).size();
     }
 
     public static void updateEventBadges(CompoundTag snapshot) {
@@ -90,8 +82,15 @@ public final class QuestBookClient {
     }
 
     public static void switchTab(Tab tab) {
-        playPageTurn();
-        openTab(tab);
+        Runnable change = () -> {
+            playPageTurn();
+            openTab(tab);
+        };
+        if (Minecraft.getInstance().screen instanceof ShopScreen shop) {
+            shop.leaveEditor(change);
+        } else {
+            change.run();
+        }
     }
 
     public static void openTab(Tab tab) {
@@ -140,7 +139,19 @@ public final class QuestBookClient {
     }
 
     @SubscribeEvent
+    public static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        reset();
+    }
+
+    @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        reset();
+    }
+
+    private static void reset() {
+        shopPosition = null;
+        weeklyPosition = null;
+        eventPosition = null;
         weeklyClaimable = 0;
         eventClaimable = 0;
         lastTab = Tab.WEEKLY;

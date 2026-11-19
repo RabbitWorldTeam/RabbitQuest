@@ -25,7 +25,8 @@ public final class EventClient {
         QuestBookClient.updateEventBadges(snapshot);
         if (client.screen instanceof EventScreen eventScreen) {
             eventScreen.receive(snapshot);
-        } else if (snapshot.getBoolean("open")) {
+        } else if (snapshot.getBoolean("open")
+                && !(client.screen instanceof ShopScreen shop && shop.hasProtectedDraft())) {
             QuestBookClient.remember(QuestBookClient.Tab.EVENTS);
             client.setScreen(new EventScreen(snapshot));
         }
