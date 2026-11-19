@@ -21,6 +21,8 @@ public final class VoucherItems {
             ITEMS.registerSimpleItem("building_material_voucher", new Item.Properties().stacksTo(64));
     public static final DeferredItem<Item> WEAPON_TOOL_VOUCHER =
             ITEMS.registerSimpleItem("weapon_tool_voucher", new Item.Properties().stacksTo(64));
+    public static final DeferredItem<Item> TOOL_VOUCHER =
+            ITEMS.registerSimpleItem("tool_voucher", new Item.Properties().stacksTo(64));
     public static final DeferredItem<QuestBookItem> QUEST_BOOK =
             ITEMS.register("quest_book", () -> new QuestBookItem(new Item.Properties().stacksTo(1)));
 
@@ -33,6 +35,7 @@ public final class VoucherItems {
                         output.accept(RabbitChest.ITEM.get());
                         output.accept(BUILDING_MATERIAL_VOUCHER.get());
                         output.accept(WEAPON_TOOL_VOUCHER.get());
+                        output.accept(TOOL_VOUCHER.get());
                     })
                     .build());
 
