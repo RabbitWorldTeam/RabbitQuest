@@ -4,7 +4,9 @@ import com.tr4nce.rabbitquest.weekly.WeeklyReward;
 import net.minecraft.resources.ResourceLocation;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -52,6 +54,49 @@ public record TimedEventDefinition(ResourceLocation id, String name, String name
         for (EventStep step : steps) {
             if (!ids.add(step.id())) {
                 throw new EventConfigException("Event " + id + " has duplicate step " + step.id());
+            }
+        }
+        validateDependencies(id, steps, ids);
+    }
+
+    public List<ResourceLocation> requirements(int index) {
+        return requirements(steps, index);
+    }
+
+    private static List<ResourceLocation> requirements(List<EventStep> steps, int index) {
+        List<ResourceLocation> explicit = steps.get(index).requires();
+        if (explicit != null) {
+            return explicit;
+        }
+        return index == 0 ? List.of() : List.of(steps.get(index - 1).id());
+    }
+
+    private static void validateDependencies(ResourceLocation eventId, List<EventStep> steps,
+                                             Set<ResourceLocation> ids) {
+        Map<ResourceLocation, List<ResourceLocation>> pending = new HashMap<>();
+        for (int index = 0; index < steps.size(); index++) {
+            ResourceLocation stepId = steps.get(index).id();
+            List<ResourceLocation> prerequisites = requirements(steps, index);
+            for (ResourceLocation required : prerequisites) {
+                if (required.equals(stepId) || !ids.contains(required)) {
+                    throw new EventConfigException("Event " + eventId + " step " + stepId
+                            + " has invalid requires entry " + required);
+                }
+            }
+            pending.put(stepId, prerequisites);
+        }
+        Set<ResourceLocation> resolved = new HashSet<>();
+        while (!pending.isEmpty()) {
+            int before = pending.size();
+            pending.entrySet().removeIf(entry -> {
+                if (resolved.containsAll(entry.getValue())) {
+                    resolved.add(entry.getKey());
+                    return true;
+                }
+                return false;
+            });
+            if (pending.size() == before) {
+                throw new EventConfigException("Event " + eventId + " has cyclic step dependencies: " + pending.keySet());
             }
         }
     }

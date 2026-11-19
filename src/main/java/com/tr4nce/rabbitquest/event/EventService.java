@@ -64,7 +64,9 @@ public final class EventService {
         if (current == null || next == null) {
             return;
         }
-        EventEngine.reconcileThresholds(next, current.data(), Instant.now());
+        Instant now = Instant.now();
+        EventEngine.preserveUnlocks(current.definitions(), next, current.data(), now);
+        EventEngine.reconcileThresholds(next, current.data(), now);
         runtime = new Runtime(current.server(), next, current.data());
         definitionVersion = nextVersion;
         configError = null;
@@ -162,6 +164,7 @@ public final class EventService {
             case "open" -> send(player, true, "", isRequestId(requestId) ? requestId : "");
             case "enroll" -> enroll(current, player, request, requestId);
             case "deliver" -> deliver(current, player, request, requestId);
+            case "click_step" -> clickStep(current, player, request, requestId);
             case "claim_step" -> claimStep(current, player, request, requestId);
             case "claim_completion" -> claimCompletion(current, player, request, requestId);
             default -> send(player, false, RESULT_PREFIX + "invalid", isRequestId(requestId) ? requestId : "");
@@ -232,6 +235,22 @@ public final class EventService {
         ResourceLocation eventId = ResourceLocation.tryParse(request.getString("event"));
         EventEngine.ActionResult result = EventEngine.enroll(current.data(), player.getUUID(),
                 current.definitions(), eventId, requestId, Instant.now());
+        send(player, false, RESULT_PREFIX + result.outcome(), requestId);
+    }
+
+    private static void clickStep(Runtime current, ServerPlayer player, CompoundTag request, String requestId) {
+        if (!isRequestId(requestId) || !request.contains("definitionVersion", Tag.TAG_LONG)) {
+            send(player, false, RESULT_PREFIX + "invalid", "");
+            return;
+        }
+        CompletionState before = captureCompletionState(current, player.getUUID());
+        EventEngine.ActionResult result = EventEngine.clickStep(current.data(), player.getUUID(),
+                current.definitions(), Instant.now(), requestId,
+                ResourceLocation.tryParse(request.getString("event")),
+                ResourceLocation.tryParse(request.getString("step")));
+        if ("ok".equals(result.outcome())) {
+            notifyEventCompletions(current, player, before, false);
+        }
         send(player, false, RESULT_PREFIX + result.outcome(), requestId);
     }
 
@@ -482,6 +501,12 @@ public final class EventService {
 
             CompoundTag stepRow = new CompoundTag();
             stepRow.putInt("index", index);
+            stepRow.putString("stage", step.stage());
+            ListTag requires = new ListTag();
+            for (ResourceLocation required : event.requirements(index)) {
+                requires.add(net.minecraft.nbt.StringTag.valueOf(required.toString()));
+            }
+            stepRow.put("requires", requires);
             stepRow.putString("id", step.id().toString());
             stepRow.putBoolean("unlocked", unlocked);
             stepRow.putBoolean("completed", completed);
@@ -504,6 +529,7 @@ public final class EventService {
             }
 
             if (revealDetails) {
+                stepRow.putBoolean("click", step.click());
                 CompoundTag progress = stepTag.getCompound("progress");
                 ListTag targets = new ListTag();
                 for (WeeklyTarget target : step.targets()) {

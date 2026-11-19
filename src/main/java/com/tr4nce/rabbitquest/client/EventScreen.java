@@ -19,6 +19,7 @@ import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,7 +48,26 @@ final class EventScreen extends Screen {
     private int browseScroll;
     private boolean rewardsOnly;
 
-    record Position(String selected, int scroll, int browseScroll, boolean rewardsOnly) {}
+    private String selectedStep = "";
+    private String selectedStage;
+    private boolean stageExpanded = true;
+    private boolean eventDetail;
+    private boolean showCompleted;
+    private boolean showLocked;
+    private int detailScroll;
+    private boolean split;
+    private Pane routePane;
+    private Pane detailPane;
+    private final List<Consumer<Integer>> detailRows = new ArrayList<>();
+    private final Map<String, RouteNode> routeNodes = new HashMap<>();
+
+    record Position(String selected, int scroll, int browseScroll, boolean rewardsOnly, String step,
+                    String stage, boolean showCompleted, boolean showLocked, boolean stageExpanded,
+                    boolean eventDetail, int detailScroll) {}
+
+    private record Pane(List<Consumer<Integer>> rows, int x, int width) {}
+
+    private record RouteNode(int x, int y, boolean completed, ListTag requires) {}
     private int left;
     private int top;
     private int panelWidth;
@@ -65,12 +85,20 @@ final class EventScreen extends Screen {
             scroll = position.scroll();
             browseScroll = position.browseScroll();
             rewardsOnly = position.rewardsOnly();
+            selectedStep = position.step();
+            selectedStage = position.stage();
+            showCompleted = position.showCompleted();
+            showLocked = position.showLocked();
+            stageExpanded = position.stageExpanded();
+            eventDetail = position.eventDetail();
+            detailScroll = position.detailScroll();
         }
     }
 
     @Override
     public void removed() {
-        QuestBookClient.eventPosition = new Position(selectedEvent, scroll, browseScroll, rewardsOnly);
+        QuestBookClient.eventPosition = new Position(selectedEvent, scroll, browseScroll, rewardsOnly,
+                selectedStep, selectedStage, showCompleted, showLocked, stageExpanded, eventDetail, detailScroll);
         super.removed();
     }
 
@@ -98,8 +126,8 @@ final class EventScreen extends Screen {
         String first = firstEventId(incoming);
         if (!hasEvent(incoming, selectedEvent)) {
             selectedEvent = first;
-            completionSelection = 0;
-            stepSelections.clear();
+            eventDetail = false;
+            clearStepSelection();
             if (rewardsOnly) {
                 browseScroll = 0;
             } else {
@@ -111,16 +139,26 @@ final class EventScreen extends Screen {
 
     @Override
     protected void init() {
-        panelWidth = Math.min(width - BookmarkTabs.GUTTER - 12, 470);
+        panelWidth = Math.min(width - BookmarkTabs.GUTTER - 12, 650);
         panelHeight = Math.min(height - 12, 330);
         left = BookmarkTabs.GUTTER + (width - BookmarkTabs.GUTTER - panelWidth) / 2;
         top = (height - panelHeight) / 2;
         contentTop = top + 54;
         contentBottom = top + panelHeight - 52;
         contentWidth = panelWidth - 18;
+        CompoundTag event = selectedEventTag();
+        split = !rewardsOnly && eventDetail && event != null;
+        int routeWidth = split ? panelWidth / 2 : panelWidth;
+        routePane = new Pane(rows, left + 7, routeWidth - 29);
+        detailPane = split ? new Pane(detailRows, left + routeWidth + 7, panelWidth - routeWidth - 29) : routePane;
+        if (split) {
+            contentTop += ROW_HEIGHT;
+        }
         captions.clear();
         icons.clear();
         rows.clear();
+        routeNodes.clear();
+        detailRows.clear();
 
         BookmarkTabs.attach(QuestBookClient.Tab.EVENTS, left, top, pendingRequest.isEmpty(),
                 this::addRenderableWidget);
@@ -140,20 +178,30 @@ final class EventScreen extends Screen {
         } else {
             buildRows();
         }
-        int capacity = capacity();
-        scroll = Mth.clamp(scroll, 0, Math.max(0, rows.size() - capacity));
-        for (int index = scroll; index < Math.min(scroll + capacity, rows.size()); index++) {
-            rows.get(index).accept(contentTop + (index - scroll) * ROW_HEIGHT);
-        }
-        if (rows.size() > capacity) {
-            addButton(label("up"), left + panelWidth - 22, contentTop, 14, () -> scrollBy(-1))
-                    .active = scroll > 0 && pendingRequest.isEmpty();
-            addButton(label("down"), left + panelWidth - 22, contentTop + ROW_HEIGHT, 14, () -> scrollBy(1))
-                    .active = scroll + capacity < rows.size() && pendingRequest.isEmpty();
+        scroll = drawPane(routePane, scroll, false);
+        if (split) {
+            detailScroll = drawPane(detailPane, detailScroll, true);
         }
         if (!message.isEmpty()) {
             caption(text(message), left + 7, top + panelHeight - 19, panelWidth - 90);
         }
+    }
+
+    private int drawPane(Pane pane, int current, boolean details) {
+        int capacity = capacity();
+        int count = pane.rows().size();
+        int first = Mth.clamp(current, 0, Math.max(0, count - capacity));
+        for (int index = first; index < Math.min(first + capacity, count); index++) {
+            pane.rows().get(index).accept(contentTop + (index - first) * ROW_HEIGHT);
+        }
+        if (count > capacity) {
+            int x = pane.x() + pane.width() + 2;
+            addButton(label("up"), x, contentTop, 14, () -> scrollBy(-1, details))
+                    .active = first > 0 && pendingRequest.isEmpty();
+            addButton(label("down"), x, contentTop + ROW_HEIGHT, 14, () -> scrollBy(1, details))
+                    .active = first + capacity < count && pendingRequest.isEmpty();
+        }
+        return first;
     }
 
     private void toggleRewards() {
@@ -180,14 +228,16 @@ final class EventScreen extends Screen {
         if (selectedEvent.isEmpty() || !hasEvent(snapshot, selectedEvent)) {
             selectedEvent = firstEventId(snapshot);
         }
-        if (events.size() > 1) {
+        if (!eventDetail) {
             textRow(label("events"));
             for (Tag tag : events) {
                 CompoundTag event = (CompoundTag) tag;
-                rows.add(y -> addButton(display(event, "event"), left + 7, y, contentWidth,
-                        () -> selectEvent(event)).active = !event.getString("id").equals(selectedEvent)
-                        && pendingRequest.isEmpty());
+                ListTag steps = list(event, "steps");
+                long completed = steps.stream().filter(step -> ((CompoundTag) step).getBoolean("completed")).count();
+                Component entry = label("route_event_entry", display(event, "event"), completed, steps.size());
+                rows.add(y -> addButton(entry, left + 7, y, contentWidth - 16, () -> selectEvent(event)));
             }
+            return;
         }
         CompoundTag event = selectedEventTag();
         if (event == null) {
@@ -195,35 +245,235 @@ final class EventScreen extends Screen {
             return;
         }
 
-        String phase = event.getString("phase");
-        rows.add(y -> {
-            icon(event.getString("icon"), left + 7, y + 2);
-            caption(display(event, "event"), left + 27, y + 6, contentWidth - 27);
+        int backWidth = Math.min(120, Math.max(64, contentWidth / 3));
+        addButton(label("route_back"), left + 7, contentTop - ROW_HEIGHT, backWidth, () -> {
+            eventDetail = false;
+            scroll = 0;
+            rebuild();
         });
-        textRow(label("phase_line", label("phase." + phase.toLowerCase(Locale.ROOT))));
-        Component description = displayDescription(event, "event");
-        if (!description.getString().isEmpty()) {
-            for (FormattedCharSequence line : font.split(description, contentWidth)) {
-                rows.add(y -> captions.add(new Caption(line, left + 7, y + 6)));
-            }
-        }
+        String phase = event.getString("phase");
+        Component header = display(event, "event").copy().append(" · ")
+                .append(label("phase." + phase.toLowerCase(Locale.ROOT)));
+        caption(header, left + backWidth + 14, contentTop - ROW_HEIGHT + 6, panelWidth - backWidth - 27);
 
         if (event.getBoolean("enrollmentRequired") && !event.getBoolean("enrolled")) {
             if ("ACTIVE".equals(phase)) {
-                rows.add(y -> addButton(label("enroll"), left + 7, y, contentWidth,
+                detailPane.rows().add(y -> addButton(label("enroll"), detailPane.x(), y, detailPane.width(),
                         () -> enroll(event)).active = pendingRequest.isEmpty());
             } else {
-                textRow(label("enroll_required"));
+                textRow(detailPane, label("enroll_required"));
             }
         }
 
-        rows.add(y -> caption(label("steps"), left + 7, y + 6, contentWidth));
-        for (Tag tag : list(event, "steps")) {
-            CompoundTag step = (CompoundTag) tag;
-            buildStepRows(event, step, phase);
+        buildSteps(event, phase);
+        buildCompletionReward(detailPane, event);
+        Component description = displayDescription(event, "event");
+        if (!description.getString().isBlank()) {
+            wrappedText(detailPane, description);
+        }
+    }
+
+    private void buildSteps(CompoundTag event, String phase) {
+        List<CompoundTag> steps = list(event, "steps").stream().map(tag -> (CompoundTag) tag).toList();
+        if (steps.isEmpty()) {
+            return;
         }
 
-        buildCompletionReward(event);
+        Map<String, CompoundTag> byId = new LinkedHashMap<>();
+        for (CompoundTag step : steps) {
+            byId.put(step.getString("id"), step);
+        }
+        CompoundTag selected = byId.get(selectedStep);
+        if (selected == null) {
+            selected = steps.stream().filter(EventScreen::actionable).findFirst().orElse(steps.getFirst());
+            selectedStep = selected.getString("id");
+        }
+        long completed = steps.stream().filter(step -> step.getBoolean("completed")).count();
+        textRow(routePane, label("route_progress", completed, steps.size()));
+
+        Map<Integer, List<CompoundTag>> levels = new LinkedHashMap<>();
+        boolean drawRoute = steps.size() <= 6 && steps.stream().noneMatch(step -> !step.getString("stage").isBlank());
+        if (drawRoute) {
+            Map<String, Integer> ranks = new HashMap<>();
+            for (CompoundTag step : steps) {
+                int level = routeLevel(step, byId, ranks);
+                levels.computeIfAbsent(level, ignored -> new ArrayList<>()).add(step);
+            }
+            drawRoute = levels.values().stream().allMatch(level -> level.size() <= 3
+                    && routePane.width() / level.size() >= 43);
+        }
+        if (drawRoute) {
+            buildRoute(levels);
+        } else {
+            buildStages(steps, selected);
+        }
+
+
+        buildStepRows(detailPane, event, selected, phase, byId);
+    }
+
+    private void buildRoute(Map<Integer, List<CompoundTag>> levels) {
+        int usable = routePane.width();
+        for (int level = 0; level < levels.size(); level++) {
+            List<CompoundTag> nodes = levels.get(level);
+            if (level > 0) {
+                rows.add(y -> {});
+            }
+            rows.add(y -> {
+                int cell = usable / nodes.size();
+                int size = Math.min(136, cell - 6);
+                for (int index = 0; index < nodes.size(); index++) {
+                    CompoundTag step = nodes.get(index);
+                    String id = step.getString("id");
+                    int center = routePane.x() + index * cell + cell / 2;
+                    routeNodes.put(id, new RouteNode(center, y, step.getBoolean("completed"),
+                            listStrings(step, "requires")));
+                    Button button = addButton(stepSummary(step), center - size / 2, y, size,
+                            () -> selectStep(step, false));
+                    routeTooltip(button, step);
+                }
+            });
+        }
+    }
+
+    private int routeLevel(CompoundTag step, Map<String, CompoundTag> byId, Map<String, Integer> ranks) {
+        String id = step.getString("id");
+        Integer known = ranks.get(id);
+        if (known != null) {
+            return known;
+        }
+        int rank = 0;
+        for (Tag required : listStrings(step, "requires")) {
+            CompoundTag dependency = byId.get(required.getAsString());
+            if (dependency != null) {
+                rank = Math.max(rank, routeLevel(dependency, byId, ranks) + 1);
+            }
+        }
+        ranks.put(id, rank);
+        return rank;
+    }
+
+    private void buildStages(List<CompoundTag> steps, CompoundTag selected) {
+        Map<String, List<CompoundTag>> stages = new LinkedHashMap<>();
+        for (CompoundTag step : steps) {
+            stages.computeIfAbsent(step.getString("stage"), ignored -> new ArrayList<>()).add(step);
+        }
+        if (!stages.containsKey(selectedStage)) {
+            selectedStage = selected.getString("stage");
+        }
+        for (var entry : stages.entrySet()) {
+            String stage = entry.getKey();
+            List<CompoundTag> members = entry.getValue();
+            boolean expanded = stageExpanded && stage.equals(selectedStage);
+            Component name = stage.isBlank() ? label("route_ungrouped") : Component.literal(stage);
+            long done = members.stream().filter(step -> step.getBoolean("completed")).count();
+            long available = members.stream().filter(EventScreen::actionable).count();
+            Component heading = label(expanded ? "route_stage_open" : "route_stage_closed",
+                    name, done, members.size(), available, members.size() - done - available);
+            rows.add(y -> {
+                Button button = addButton(heading, routePane.x(), y, routePane.width(), () -> {
+                    selectedStage = stage;
+                    stageExpanded = !expanded;
+                    rebuild();
+                });
+                button.setTooltip(Tooltip.create(heading));
+            });
+            if (expanded) {
+                buildStageSteps(members, done, members.size() - done - available);
+            }
+        }
+    }
+
+    private void buildStageSteps(List<CompoundTag> members, long done, long locked) {
+        for (CompoundTag step : members) {
+            if (actionable(step)) {
+                stageStepRow(step);
+            }
+        }
+        if (done > 0) {
+            rows.add(y -> addButton(label(showCompleted ? "route_hide_done" : "route_show_done", done),
+                    routePane.x() + 8, y, routePane.width() - 8, () -> {
+                        showCompleted = !showCompleted;
+                        rebuild();
+                    }));
+            if (showCompleted) {
+                members.stream().filter(step -> step.getBoolean("completed")).forEach(this::stageStepRow);
+            }
+        }
+        if (locked > 0) {
+            rows.add(y -> addButton(label(showLocked ? "route_hide_locked" : "route_show_locked", locked),
+                    routePane.x() + 8, y, routePane.width() - 8, () -> {
+                        showLocked = !showLocked;
+                        rebuild();
+                    }));
+            if (showLocked) {
+                members.stream().filter(step -> !step.getBoolean("completed") && !actionable(step))
+                        .forEach(this::stageStepRow);
+            }
+        }
+    }
+
+    private void stageStepRow(CompoundTag step) {
+        rows.add(y -> routeTooltip(addButton(stepSummary(step), routePane.x() + 8, y, routePane.width() - 8,
+                () -> selectStep(step, false)), step));
+    }
+
+    private void routeTooltip(Button button, CompoundTag step) {
+        button.setTooltip(Tooltip.create(stepSummary(step)));
+        button.active = pendingRequest.isEmpty() && !step.getString("id").equals(selectedStep);
+    }
+
+    private Component stepSummary(CompoundTag step) {
+        String status = step.getBoolean("completed") ? "completed"
+                : actionable(step) ? "unlocked" : "locked";
+        ListTag targets = list(step, "targets");
+        Component state = label("status." + status);
+        if (actionable(step) && targets.size() == 1) {
+            state = Component.literal(progressText(targets.getCompound(0)) + " / " + targets.getCompound(0).getInt("amount"));
+        } else if (actionable(step) && targets.size() > 1) {
+            long completed = targets.stream().map(tag -> (CompoundTag) tag)
+                    .filter(target -> target.getDouble("progress") + 1.0E-9 >= target.getInt("amount")).count();
+            state = label("route_goal_progress", completed, targets.size());
+        }
+        return label("route_node", state, stepName(step));
+    }
+
+    private Component stepName(CompoundTag step) {
+        if (step.getString("stepName").isEmpty() && step.getString("stepNameKey").isEmpty()) {
+            return label("step_hidden", step.getInt("index") + 1);
+        }
+        return display(step, "step");
+    }
+
+    private static boolean actionable(CompoundTag step) {
+        return step.getBoolean("unlocked") && !step.getBoolean("completed");
+    }
+
+    private static ListTag listStrings(CompoundTag tag, String key) {
+        return tag.getList(key, Tag.TAG_STRING);
+    }
+
+    private void clearStepSelection() {
+        selectedStep = "";
+        detailScroll = 0;
+        selectedStage = null;
+        stageExpanded = true;
+        showCompleted = false;
+        showLocked = false;
+        completionSelection = 0;
+        stepSelections.clear();
+    }
+
+    private void selectStep(CompoundTag step, boolean jump) {
+        selectedStep = step.getString("id");
+        selectedStage = step.getString("stage");
+        stageExpanded = true;
+        if (jump) {
+            showCompleted |= step.getBoolean("completed");
+            showLocked |= !step.getBoolean("unlocked") && !step.getBoolean("completed");
+        }
+        detailScroll = 0;
+        rebuild();
     }
 
     private void buildRewardList() {
@@ -234,11 +484,11 @@ final class EventScreen extends Screen {
                 CompoundTag step = (CompoundTag) stepTag;
                 if (step.getBoolean("claimable")) {
                     textRow(display(step, "step"));
-                    buildStepReward(event, step);
+                    buildStepReward(routePane, event, step);
                 }
             }
             if (event.getBoolean("completionClaimable")) {
-                buildCompletionReward(event);
+                buildCompletionReward(routePane, event);
             }
             if (rows.size() > firstReward) {
                 rows.add(firstReward, y -> caption(display(event, "event"), left + 7, y + 6, contentWidth));
@@ -249,9 +499,9 @@ final class EventScreen extends Screen {
         }
     }
 
-    private void buildCompletionReward(CompoundTag event) {
+    private void buildCompletionReward(Pane pane, CompoundTag event) {
         if (event.getBoolean("hasCompletionReward")) {
-            rows.add(y -> caption(label("completion_reward"), left + 7, y + 6, contentWidth));
+            pane.rows().add(y -> caption(label("completion_reward"), pane.x(), y + 6, pane.width()));
             CompoundTag reward = event.getCompound("completionReward");
             String mode = reward.getString("mode");
             ListTag groups = reward.getList("groups", Tag.TAG_COMPOUND);
@@ -259,55 +509,61 @@ final class EventScreen extends Screen {
             if ("CHOICE".equals(mode)) {
                 for (int i = 0; i < groups.size(); i++) {
                     int groupIndex = i;
-                    rows.add(y -> {
-                        caption(label("option_label", groupIndex + 1), left + 7, y + 6, contentWidth - 78);
+                    pane.rows().add(y -> {
+                        caption(label("option_label", groupIndex + 1), pane.x(), y + 6, pane.width() - 78);
                         if (claimable) {
-                            addButton(label("claim_completion"), left + panelWidth - 79, y, 72,
+                            addButton(label("claim_completion"), pane.x() + pane.width() - 72, y, 72,
                                     () -> claimCompletionGroup(event, groupIndex)).active = pendingRequest.isEmpty();
                         }
                     });
-                    renderRewardItems(reward, groupIndex);
+                    renderRewardItems(pane, reward, groupIndex);
                 }
                 if (!claimable && event.getBoolean("completionClaimed")) {
-                    textRow(label("claimed"));
+                    textRow(pane, label("claimed"));
                 }
             } else {
                 int shown = "WEIGHTED".equals(mode) && event.getInt("completionRewardGroup") >= 0
                         ? event.getInt("completionRewardGroup") : 0;
-                renderRewardItems(reward, shown);
+                renderRewardItems(pane, reward, shown);
                 if (claimable) {
-                    rows.add(y -> addButton(label("claim_completion"), left + 7, y, contentWidth,
+                    pane.rows().add(y -> addButton(label("claim_completion"), pane.x(), y, pane.width(),
                             () -> claimCompletionGroup(event, 0)).active = pendingRequest.isEmpty());
                 } else if (event.getBoolean("completionClaimed")) {
-                    textRow(label("claimed"));
+                    textRow(pane, label("claimed"));
                 }
             }
         }
     }
 
-    private void buildStepRows(CompoundTag event, CompoundTag step, String phase) {
+    private void buildStepRows(Pane pane, CompoundTag event, CompoundTag step, String phase,
+                               Map<String, CompoundTag> steps) {
         int index = step.getInt("index") + 1;
-        String stepId = step.getString("id");
         boolean unlocked = step.getBoolean("unlocked");
         boolean completed = step.getBoolean("completed");
         String visibility = step.getString("lockedVisibility");
 
         if (!unlocked && !completed && "HIDDEN".equals(visibility)) {
-            textRow(label("step_hidden", index));
+            textRow(pane, label("step_hidden", index));
             return;
         }
 
         Component statusLabel = completed ? label("status.completed")
                 : (unlocked ? label("status.unlocked") : label("status.locked"));
-        rows.add(y -> caption(label("step_line", index, display(step, "step"), statusLabel),
-                left + 7, y + 6, contentWidth));
+        wrappedText(pane, label("route_node", statusLabel, stepName(step)));
 
         if (!unlocked && !completed) {
+            for (Tag required : listStrings(step, "requires")) {
+                CompoundTag prerequisite = steps.get(required.getAsString());
+                if (prerequisite != null && !prerequisite.getBoolean("completed")) {
+                    pane.rows().add(y -> addButton(label("route_requires", stepName(prerequisite)),
+                            pane.x(), y, pane.width(), () -> selectStep(prerequisite, true)));
+                }
+            }
             String condKey = step.getString("unlockConditionKey");
             String cond = step.getString("unlockCondition");
             if (!condKey.isBlank() || !cond.isBlank()) {
                 Component condText = condKey.isBlank() ? Component.literal(cond) : Component.translatable(condKey);
-                textRow(label("unlock_line", condText));
+                textRow(pane, label("unlock_line", condText));
             }
             if (!"DETAILS".equals(visibility)) {
                 return;
@@ -316,30 +572,34 @@ final class EventScreen extends Screen {
 
         Component stepDesc = displayDescription(step, "step");
         if (!stepDesc.getString().isEmpty()) {
-            for (FormattedCharSequence line : font.split(stepDesc, contentWidth)) {
-                rows.add(y -> captions.add(new Caption(line, left + 7, y + 6)));
+            for (FormattedCharSequence line : font.split(stepDesc, pane.width())) {
+                pane.rows().add(y -> captions.add(new Caption(line, pane.x(), y + 6)));
             }
         }
 
         boolean canDeliver = "ACTIVE".equals(phase) && unlocked && !completed;
+        if (step.getBoolean("click") && canDeliver) {
+            pane.rows().add(y -> addButton(label("complete_step"), pane.x(), y, pane.width(), () -> {
+                CompoundTag request = request("click_step");
+                request.putString("event", event.getString("id"));
+                request.putString("step", step.getString("id"));
+                submit(request);
+            }));
+        }
         for (Tag targetTag : list(step, "targets")) {
             CompoundTag target = (CompoundTag) targetTag;
             String kind = target.getString("kind");
+            wrappedText(pane, targetText(target));
             if ("DELIVER".equals(kind) || "DELIVERY".equals(kind)) {
-                rows.add(y -> {
-                    caption(targetText(target), left + 7, y + 6, contentWidth - 78);
-                    addButton(label("deliver"), left + panelWidth - 79, y, 72,
-                            () -> deliver(event, step, target)).active = canDeliver && pendingRequest.isEmpty();
-                });
-            } else {
-                rows.add(y -> caption(targetText(target), left + 7, y + 6, contentWidth));
+                pane.rows().add(y -> addButton(label("deliver"), pane.x(), y, pane.width(),
+                        () -> deliver(event, step, target)).active = canDeliver && pendingRequest.isEmpty());
             }
         }
 
-        buildStepReward(event, step);
+        buildStepReward(pane, event, step);
     }
 
-    private void buildStepReward(CompoundTag event, CompoundTag step) {
+    private void buildStepReward(Pane pane, CompoundTag event, CompoundTag step) {
         boolean isChoice = false;
         if (step.contains("reward", Tag.TAG_COMPOUND)) {
             CompoundTag reward = step.getCompound("reward");
@@ -350,58 +610,58 @@ final class EventScreen extends Screen {
                 boolean stepClaimable = step.getBoolean("claimable");
                 for (int i = 0; i < groups.size(); i++) {
                     int groupIndex = i;
-                    rows.add(y -> {
-                        caption(label("option_label", groupIndex + 1), left + 7, y + 6, contentWidth - 78);
+                    pane.rows().add(y -> {
+                        caption(label("option_label", groupIndex + 1), pane.x(), y + 6, pane.width() - 78);
                         if (stepClaimable) {
-                            addButton(label("claim_step"), left + panelWidth - 79, y, 72,
+                            addButton(label("claim_step"), pane.x() + pane.width() - 72, y, 72,
                                     () -> claimStep(event, step, groupIndex)).active = pendingRequest.isEmpty();
                         }
                     });
-                    renderRewardItems(reward, groupIndex);
+                    renderRewardItems(pane, reward, groupIndex);
                 }
             } else {
                 int shown = "WEIGHTED".equals(mode) && step.getInt("rewardGroup") >= 0
                         ? step.getInt("rewardGroup") : 0;
-                renderRewardItems(reward, shown);
+                renderRewardItems(pane, reward, shown);
             }
         }
 
         if (!isChoice && step.getBoolean("claimable")) {
-            rows.add(y -> addButton(label("claim_step"), left + 7, y, contentWidth,
+            pane.rows().add(y -> addButton(label("claim_step"), pane.x(), y, pane.width(),
                     () -> claimStep(event, step, 0)).active = pendingRequest.isEmpty());
         } else if (step.getBoolean("claimed")) {
-            textRow(label("claimed"));
+            textRow(pane, label("claimed"));
         }
     }
 
-    private void renderRewardItems(CompoundTag reward, int groupIndex) {
+    private void renderRewardItems(Pane pane, CompoundTag reward, int groupIndex) {
         String mode = reward.getString("mode");
         if ("CHOICE".equals(mode) || "WEIGHTED".equals(mode)) {
             ListTag groups = reward.getList("groups", Tag.TAG_COMPOUND);
             if (!groups.isEmpty()) {
                 CompoundTag group = groups.getCompound(Mth.clamp(groupIndex, 0, groups.size() - 1));
                 for (Tag item : group.getList("items", Tag.TAG_COMPOUND)) {
-                    rewardRow((CompoundTag) item);
+                    rewardRow(pane, (CompoundTag) item);
                 }
             }
         } else {
             for (Tag item : reward.getList("items", Tag.TAG_COMPOUND)) {
-                rewardRow((CompoundTag) item);
+                rewardRow(pane, (CompoundTag) item);
             }
         }
     }
 
-    private void rewardRow(CompoundTag item) {
-        rows.add(y -> {
+    private void rewardRow(Pane pane, CompoundTag item) {
+        pane.rows().add(y -> {
             ResourceLocation id = ResourceLocation.tryParse(item.getString("item"));
             int count = item.getInt("count");
             if (id != null && BuiltInRegistries.ITEM.containsKey(id)) {
                 ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.get(id), Math.max(1, count));
-                icons.add(new Icon(stack, left + 7, y + 2));
+                icons.add(new Icon(stack, pane.x(), y + 2));
                 caption(Component.literal(count + " × ").append(stack.getHoverName()),
-                        left + 27, y + 6, contentWidth - 27);
+                        pane.x() + 20, y + 6, pane.width() - 20);
             } else {
-                caption(Component.literal(item.getString("item") + " × " + count), left + 7, y + 6, contentWidth);
+                caption(Component.literal(item.getString("item") + " × " + count), pane.x(), y + 6, pane.width());
             }
         });
     }
@@ -426,9 +686,12 @@ final class EventScreen extends Screen {
     }
 
     private void selectEvent(CompoundTag event) {
-        selectedEvent = event.getString("id");
-        completionSelection = 0;
-        stepSelections.clear();
+        String id = event.getString("id");
+        if (!id.equals(selectedEvent)) {
+            clearStepSelection();
+        }
+        selectedEvent = id;
+        eventDetail = true;
         scroll = 0;
         rebuild();
     }
@@ -493,12 +756,19 @@ final class EventScreen extends Screen {
         ShopNetwork.send(request);
     }
 
-    private void scrollBy(int direction) {
-        int next = Mth.clamp(scroll + direction, 0, Math.max(0, rows.size() - capacity()));
-        if (next != scroll) {
-            scroll = next;
-            rebuild();
+    private void scrollBy(int direction, boolean details) {
+        Pane pane = details ? detailPane : routePane;
+        int current = details ? detailScroll : scroll;
+        int next = Mth.clamp(current + direction, 0, Math.max(0, pane.rows().size() - capacity()));
+        if (next == current) {
+            return;
         }
+        if (details) {
+            detailScroll = next;
+        } else {
+            scroll = next;
+        }
+        rebuild();
     }
 
     private int capacity() {
@@ -551,7 +821,17 @@ final class EventScreen extends Screen {
     }
 
     private void textRow(Component text) {
-        rows.add(y -> caption(text, left + 7, y + 6, contentWidth));
+        textRow(routePane, text);
+    }
+
+    private void textRow(Pane pane, Component text) {
+        pane.rows().add(y -> caption(text, pane.x(), y + 6, pane.width()));
+    }
+
+    private void wrappedText(Pane pane, Component text) {
+        for (FormattedCharSequence line : font.split(text, pane.width())) {
+            pane.rows().add(y -> captions.add(new Caption(line, pane.x(), y + 6)));
+        }
     }
 
     private void caption(Component text, int x, int y, int size) {
@@ -596,7 +876,7 @@ final class EventScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
         if (vertical != 0 && mouseY >= contentTop && mouseY < contentBottom) {
-            scrollBy(vertical > 0 ? -1 : 1);
+            scrollBy(vertical > 0 ? -1 : 1, split && mouseX >= detailPane.x() - 7);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
@@ -613,6 +893,24 @@ final class EventScreen extends Screen {
         gui.fill(left, top, left + panelWidth, top + panelHeight, PANEL_COLOR);
         gui.renderOutline(left, top, panelWidth, panelHeight, OUTLINE_COLOR);
         gui.fill(left + 5, contentTop - 5, left + panelWidth - 5, contentBottom + 5, 0xFFDAD6CA);
+        if (split) {
+            int divider = detailPane.x() - 7;
+            gui.vLine(divider, contentTop - 4, contentBottom + 4, OUTLINE_COLOR);
+        }
+        for (RouteNode node : routeNodes.values()) {
+            for (Tag required : node.requires()) {
+                RouteNode parent = routeNodes.get(required.getAsString());
+                if (parent == null) {
+                    continue;
+                }
+                int startY = parent.y() + 20;
+                int middleY = startY + (node.y() - startY) / 2;
+                int color = parent.completed() ? OUTLINE_COLOR : 0xFF9E9788;
+                gui.vLine(parent.x(), startY, middleY, color);
+                gui.hLine(Math.min(parent.x(), node.x()), Math.max(parent.x(), node.x()), middleY, color);
+                gui.vLine(node.x(), middleY, node.y(), color);
+            }
+        }
     }
 
     @Override

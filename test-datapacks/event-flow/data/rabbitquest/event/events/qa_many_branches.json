@@ -1,0 +1,157 @@
+{
+  "id": "rabbitquest:qa_many_branches",
+  "name": "验收 · 十二项并行任务",
+  "description": "报名后领取清单，按任意顺序完成 12 项检查，再回营提交。",
+  "icon": "minecraft:compass",
+  "enabled": true,
+  "enrollmentRequired": true,
+  "startAt": "2026-01-01T00:00:00+08:00",
+  "endAt": "2030-01-01T00:00:00+08:00",
+  "claimEndAt": "2030-01-08T00:00:00+08:00",
+  "steps": [
+    {
+      "id": "rabbitquest:qa_list_start",
+      "name": "确认检查清单",
+      "requires": [],
+      "completion": "CLICK",
+      "stage": "领取清单"
+    },
+    {
+      "id": "rabbitquest:qa_check_01",
+      "name": "检查补给点 01",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_02",
+      "name": "检查补给点 02",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_03",
+      "name": "检查补给点 03",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_04",
+      "name": "检查补给点 04",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_05",
+      "name": "检查补给点 05",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_06",
+      "name": "检查补给点 06",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_07",
+      "name": "检查补给点 07",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_08",
+      "name": "检查补给点 08",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_09",
+      "name": "检查补给点 09",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_10",
+      "name": "检查补给点 10",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_11",
+      "name": "检查补给点 11",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_check_12",
+      "name": "检查补给点 12",
+      "requires": [
+        "rabbitquest:qa_list_start"
+      ],
+      "completion": "CLICK",
+      "stage": "检查补给点"
+    },
+    {
+      "id": "rabbitquest:qa_list_finish",
+      "name": "提交检查结果",
+      "requires": [
+        "rabbitquest:qa_check_01",
+        "rabbitquest:qa_check_02",
+        "rabbitquest:qa_check_03",
+        "rabbitquest:qa_check_04",
+        "rabbitquest:qa_check_05",
+        "rabbitquest:qa_check_06",
+        "rabbitquest:qa_check_07",
+        "rabbitquest:qa_check_08",
+        "rabbitquest:qa_check_09",
+        "rabbitquest:qa_check_10",
+        "rabbitquest:qa_check_11",
+        "rabbitquest:qa_check_12"
+      ],
+      "completion": "CLICK",
+      "stage": "回营"
+    }
+  ],
+  "completionReward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "count": 1,
+        "item": "minecraft:emerald"
+      }
+    ]
+  }
+}

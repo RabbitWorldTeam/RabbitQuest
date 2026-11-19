@@ -16,7 +16,14 @@ import java.util.Set;
 public record EventStep(ResourceLocation id, String name, String nameKey, String description,
                         String descriptionKey, String unlockCondition, String unlockConditionKey,
                         LockedVisibility lockedVisibility, List<WeeklyTarget> targets,
-                        WeeklyReward reward) {
+                        WeeklyReward reward, List<ResourceLocation> requires, boolean click, String stage) {
+    public EventStep(ResourceLocation id, String name, String nameKey, String description,
+                     String descriptionKey, String unlockCondition, String unlockConditionKey,
+                     LockedVisibility lockedVisibility, List<WeeklyTarget> targets, WeeklyReward reward) {
+        this(id, name, nameKey, description, descriptionKey, unlockCondition, unlockConditionKey,
+                lockedVisibility, targets, reward, null, false, "");
+    }
+
     public enum LockedVisibility {
         TITLE_AND_CONDITION,
         DETAILS,
@@ -41,7 +48,15 @@ public record EventStep(ResourceLocation id, String name, String nameKey, String
         }
         Objects.requireNonNull(lockedVisibility, "lockedVisibility");
         targets = List.copyOf(targets);
-        if (targets.isEmpty()) {
+        requires = requires == null ? null : List.copyOf(requires);
+        stage = Objects.requireNonNullElse(stage, "").strip();
+        if (requires != null && new HashSet<>(requires).size() != requires.size()) {
+            throw new EventConfigException("Event step " + id + " has duplicate requires entries");
+        }
+        if (click && !targets.isEmpty()) {
+            throw new EventConfigException("CLICK step " + id + " cannot have targets");
+        }
+        if (!click && targets.isEmpty()) {
             throw new EventConfigException("Event step " + id + " has no targets");
         }
         Set<ResourceLocation> ids = new HashSet<>();

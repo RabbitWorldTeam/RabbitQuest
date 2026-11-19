@@ -12,11 +12,13 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class EventEngineTest {
     private static final ResourceLocation OVERWORLD = ResourceLocation.fromNamespaceAndPath("minecraft", "overworld");
@@ -63,6 +65,54 @@ class EventEngineTest {
                                 new WeeklyReward.RewardItem(ResourceLocation.parse("minecraft:gold_ingot"), 4)))
                 ))
         );
+    }
+
+    @Test
+    void parallelStepsUseTheSameInitialUnlockStateAndClickRequiresAllBranches() {
+        String json = """
+                {
+                  "id":"rabbitquest:test", "name":"Test", "icon":"minecraft:chest", "enabled":true,
+                  "startAt":"2026-11-17T00:00:00Z", "endAt":"2026-11-24T00:00:00Z",
+                  "claimEndAt":"2026-11-26T00:00:00Z",
+                  "steps":[
+                    {"id":"rabbitquest:intro","name":"Intro","completion":"CLICK","requires":[]},
+                    {"id":"rabbitquest:a","name":"A","requires":["rabbitquest:intro"],
+                     "targets":[{"id":"rabbitquest:a_kill","kind":"KILL","resource":"minecraft:zombie","amount":1}]},
+                    {"id":"rabbitquest:b","name":"B","requires":["rabbitquest:intro"],
+                     "targets":[{"id":"rabbitquest:b_kill","kind":"KILL","resource":"minecraft:zombie","amount":1}]},
+                    {"id":"rabbitquest:c","name":"C","requires":["rabbitquest:a","rabbitquest:b"],
+                     "targets":[{"id":"rabbitquest:c_kill","kind":"KILL","resource":"minecraft:zombie","amount":1}]},
+                    {"id":"rabbitquest:finish","name":"Finish","completion":"CLICK","requires":["rabbitquest:c"]}
+                  ],
+                  "completionReward":{"mode":"FIXED","items":[{"item":"minecraft:emerald","count":1}]}
+                }
+                """;
+        EventDefinitions definitions = EventDefinitions.parse(Map.of("test.json", json));
+        ResourceLocation event = ResourceLocation.parse("rabbitquest:test");
+        ResourceLocation intro = ResourceLocation.parse("rabbitquest:intro");
+        ResourceLocation finish = ResourceLocation.parse("rabbitquest:finish");
+        EventSavedData data = new EventSavedData();
+        UUID player = UUID.randomUUID();
+        assertEquals("locked", EventEngine.clickStep(data, player, definitions, ACTIVE,
+                "premature", event, finish).outcome());
+        assertEquals("ok", EventEngine.clickStep(data, player, definitions, ACTIVE, "intro", event, intro).outcome());
+        assertEquals("ok", EventEngine.clickStep(data, player, definitions, ACTIVE, "intro", event, intro).outcome());
+        assertEquals("already_completed", EventEngine.clickStep(data, player, definitions, ACTIVE,
+                "different", event, intro).outcome());
+        assertEquals(2, EventEngine.record(data, player, definitions, ACTIVE,
+                TargetKind.KILL, ZOMBIE, 1, OVERWORLD, Vec3.ZERO, null));
+        assertFalse(data.event(player, event).getCompound("steps").getCompound("rabbitquest:c")
+                .getBoolean("completed"));
+        assertEquals(1, EventEngine.record(data, player, definitions, ACTIVE,
+                TargetKind.KILL, ZOMBIE, 1, OVERWORLD, Vec3.ZERO, null));
+        assertEquals("not_active", EventEngine.clickStep(data, player, definitions, CLAIM_ONLY,
+                "late", event, finish).outcome());
+        assertEquals("ok", EventEngine.clickStep(data, player, definitions, ACTIVE,
+                "finish", event, finish).outcome());
+        assertTrue(data.event(player, event).getCompound("completion").getBoolean("completed"));
+
+        String cyclic = json.replace("\"requires\":[]", "\"requires\":[\"rabbitquest:finish\"]");
+        assertThrows(EventConfigException.class, () -> EventDefinitions.parse(Map.of("cyclic.json", cyclic)));
     }
 
     @Test

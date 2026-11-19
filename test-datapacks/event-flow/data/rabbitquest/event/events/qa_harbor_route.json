@@ -1,0 +1,76 @@
+{
+  "id": "rabbitquest:qa_harbor_route",
+  "name": "验收 · 港口筹备",
+  "description": "完成公告后，两条路线可并行推进。两条都完成后回营确认。",
+  "icon": "minecraft:compass",
+  "enabled": true,
+  "enrollmentRequired": false,
+  "startAt": "2026-01-01T00:00:00+08:00",
+  "endAt": "2030-01-01T00:00:00+08:00",
+  "claimEndAt": "2030-01-08T00:00:00+08:00",
+  "steps": [
+    {
+      "id": "rabbitquest:qa_notice",
+      "name": "阅读活动公告",
+      "requires": [],
+      "completion": "CLICK"
+    },
+    {
+      "id": "rabbitquest:qa_materials",
+      "name": "工程部备料",
+      "requires": [
+        "rabbitquest:qa_notice"
+      ],
+      "targets": [
+        {
+          "amount": 16,
+          "resource": "minecraft:oak_log",
+          "kind": "DELIVER",
+          "id": "rabbitquest:qa_supply"
+        }
+      ],
+      "reward": {
+        "mode": "FIXED",
+        "items": [
+          {
+            "count": 1,
+            "item": "minecraft:paper"
+          }
+        ]
+      }
+    },
+    {
+      "id": "rabbitquest:qa_cache",
+      "name": "港口寻宝",
+      "requires": [
+        "rabbitquest:qa_notice"
+      ],
+      "targets": [
+        {
+          "amount": 1,
+          "resource": "rabbitquest:qa_harbor_cache",
+          "kind": "OPEN_RABBIT_CHEST",
+          "id": "rabbitquest:qa_find_cache"
+        }
+      ]
+    },
+    {
+      "id": "rabbitquest:qa_return",
+      "name": "回营确认",
+      "requires": [
+        "rabbitquest:qa_materials",
+        "rabbitquest:qa_cache"
+      ],
+      "completion": "CLICK"
+    }
+  ],
+  "completionReward": {
+    "mode": "FIXED",
+    "items": [
+      {
+        "count": 1,
+        "item": "minecraft:emerald"
+      }
+    ]
+  }
+}

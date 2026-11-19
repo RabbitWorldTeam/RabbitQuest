@@ -88,38 +88,18 @@ final class EventEngine {
         return ActionResult.ok();
     }
 
-    static int unlockedStepIndex(TimedEventDefinition event, CompoundTag eventTag, Instant now) {
-        if (!isParticipating(event, eventTag, now)) {
-            return -1;
+    static boolean isStepUnlocked(TimedEventDefinition event, CompoundTag eventTag, int stepIndex, Instant now) {
+        if (stepIndex < 0 || stepIndex >= event.steps().size() || !isParticipating(event, eventTag, now)) {
+            return false;
         }
         CompoundTag steps = eventTag.getCompound("steps");
-        for (int index = 0; index < event.steps().size(); index++) {
-            EventStep step = event.steps().get(index);
-            if (!steps.getCompound(step.id().toString()).getBoolean("completed")) {
-                return index;
-            }
-        }
-        return event.steps().size();
+        CompoundTag step = steps.getCompound(event.steps().get(stepIndex).id().toString());
+        return step.getBoolean("carriedUnlock") || event.requirements(stepIndex).stream()
+                .allMatch(required -> steps.getCompound(required.toString()).getBoolean("completed"));
     }
 
-    static boolean isStepUnlocked(TimedEventDefinition event, CompoundTag eventTag, int stepIndex, Instant now) {
-        if (stepIndex < 0 || stepIndex >= event.steps().size()) {
-            return false;
-        }
-        if (!isParticipating(event, eventTag, now)) {
-            return false;
-        }
-        if (stepIndex == 0) {
-            return true;
-        }
-        EventStep previous = event.steps().get(stepIndex - 1);
-        return eventTag.getCompound("steps").getCompound(previous.id().toString()).getBoolean("completed");
-    }
+    /** Advances the steps that were unlocked when this gameplay event began. */
 
-    /**
-     * Records a gameplay event across all active, participating timed events. Only the currently
-     * unlocked incomplete step of each event can advance.
-     */
     static int record(EventSavedData data, UUID player, EventDefinitions definitions, Instant now,
                       TargetKind kind, ResourceLocation resource, double amount, ResourceLocation dimension,
                       Vec3 position, List<ItemStack> inventory) {
@@ -136,80 +116,119 @@ final class EventEngine {
             if (!isParticipating(event, eventTag, now)) {
                 continue;
             }
-            int activeIndex = unlockedStepIndex(event, eventTag, now);
-            if (activeIndex < 0 || activeIndex >= event.steps().size()) {
-                continue;
-            }
-            EventStep step = event.steps().get(activeIndex);
-            CompoundTag steps = eventTag.getCompound("steps");
-            CompoundTag stepTag = steps.getCompound(step.id().toString());
-            CompoundTag progress = stepTag.getCompound("progress");
-            List<WeeklyTarget> matches = matchingTargets(step, kind, resource, dimension, position, progress);
-            if (matches.isEmpty()) {
-                continue;
-            }
-            if (eventTag.isEmpty()) {
-                eventTag = newEvent(event.id());
-                steps = eventTag.getCompound("steps");
-            }
-            if (stepTag.isEmpty()) {
-                stepTag = newStep(step.id());
-                progress = stepTag.getCompound("progress");
-            }
-
-            boolean changed = false;
-            if (kind == TargetKind.DELIVER) {
-                WeeklyTarget target = matches.getFirst();
-                int remaining = remaining(target, progress);
-                int added = removeItems(inventory, target.resource(),
-                        Math.min((int) Math.floor(amount), remaining));
-                if (added > 0) {
-                    putProgress(progress, target, progress(target, progress) + added);
-                    accepted += added;
-                    changed = true;
+            List<EventStep> unlocked = new ArrayList<>();
+            CompoundTag existingSteps = eventTag.getCompound("steps");
+            for (int index = 0; index < event.steps().size(); index++) {
+                EventStep step = event.steps().get(index);
+                if (!step.click() && !existingSteps.getCompound(step.id().toString()).getBoolean("completed")
+                        && isStepUnlocked(event, eventTag, index, now)) {
+                    unlocked.add(step);
                 }
-            } else {
-                for (WeeklyTarget target : matches) {
-                    double current = progress(target, progress);
-                    double remaining = target.amount() - current;
-                    if (remaining <= 0.0) {
-                        continue;
+            }
+            for (EventStep step : unlocked) {
+                CompoundTag steps = eventTag.getCompound("steps");
+                CompoundTag stepTag = steps.getCompound(step.id().toString());
+                CompoundTag progress = stepTag.getCompound("progress");
+                List<WeeklyTarget> matches = matchingTargets(step, kind, resource, dimension, position, progress);
+                if (matches.isEmpty()) {
+                    continue;
+                }
+                if (eventTag.isEmpty()) {
+                    eventTag = newEvent(event.id());
+                    steps = eventTag.getCompound("steps");
+                }
+                if (stepTag.isEmpty()) {
+                    stepTag = newStep(step.id());
+                    progress = stepTag.getCompound("progress");
+                }
+
+                boolean changed = false;
+                if (kind == TargetKind.DELIVER) {
+                    WeeklyTarget target = matches.getFirst();
+                    int remaining = remaining(target, progress);
+                    int added = removeItems(inventory, target.resource(),
+                            Math.min((int) Math.floor(amount), remaining));
+                    if (added > 0) {
+                        putProgress(progress, target, progress(target, progress) + added);
+                        accepted += added;
+                        changed = true;
                     }
-                    double added;
-                    if (target.fractional()) {
-                        added = Math.min(amount, remaining);
-                    } else {
-                        int whole = (int) Math.floor(amount);
-                        if (whole <= 0) {
+                } else {
+                    for (WeeklyTarget target : matches) {
+                        double current = progress(target, progress);
+                        double remaining = target.amount() - current;
+                        if (remaining <= 0.0) {
                             continue;
                         }
-                        added = Math.min(whole, remaining);
+                        double added;
+                        if (target.fractional()) {
+                            added = Math.min(amount, remaining);
+                        } else {
+                            int whole = (int) Math.floor(amount);
+                            if (whole <= 0) {
+                                continue;
+                            }
+                            added = Math.min(whole, remaining);
+                        }
+                        if (added <= 0.0) {
+                            continue;
+                        }
+                        double next = Math.min(target.amount(), current + added);
+                        putProgress(progress, target, next);
+                        if (kind == TargetKind.TRAVEL) {
+                            accepted += (int) Math.floor(next + 1.0E-9) - (int) Math.floor(current + 1.0E-9);
+                        } else {
+                            accepted += (int) Math.floor(next - current + 1.0E-9);
+                        }
+                        changed = true;
                     }
-                    if (added <= 0.0) {
-                        continue;
-                    }
-                    double next = Math.min(target.amount(), current + added);
-                    putProgress(progress, target, next);
-                    if (kind == TargetKind.TRAVEL) {
-                        accepted += (int) Math.floor(next + 1.0E-9) - (int) Math.floor(current + 1.0E-9);
-                    } else {
-                        accepted += (int) Math.floor(next - current + 1.0E-9);
-                    }
-                    changed = true;
                 }
-            }
 
-            if (changed) {
-                stepTag.put("progress", progress);
-                if (complete(step, progress)) {
-                    completeStep(event, step, stepTag, eventTag, player, now);
+                if (changed) {
+                    stepTag.put("progress", progress);
+                    if (complete(step, progress)) {
+                        completeStep(event, step, stepTag, eventTag, player, now);
+                    }
+                    steps.put(step.id().toString(), stepTag);
+                    eventTag.put("steps", steps);
+                    data.putEvent(player, event.id(), eventTag);
                 }
-                steps.put(step.id().toString(), stepTag);
-                eventTag.put("steps", steps);
-                data.putEvent(player, event.id(), eventTag);
             }
         }
         return accepted;
+    }
+
+    static ActionResult clickStep(EventSavedData data, UUID player, EventDefinitions definitions, Instant now,
+                                  String requestId, ResourceLocation eventId, ResourceLocation stepId) {
+        String previous = data.receipt(player, requestId);
+        if (previous != null) {
+            return "ok".equals(previous) ? ActionResult.ok() : ActionResult.failed(previous);
+        }
+        TimedEventDefinition event = eventId == null ? null : definitions.event(eventId);
+        int index = event == null || stepId == null ? -1 : event.stepIndex(stepId);
+        if (index < 0 || !event.enabled() || !event.steps().get(index).click()) {
+            return ActionResult.failed("invalid");
+        }
+        CompoundTag eventTag = data.event(player, eventId);
+        if (eventTag.getCompound("steps").getCompound(stepId.toString()).getBoolean("completed")) {
+            return ActionResult.failed("already_completed");
+        }
+        if (event.phase(now) != TimedEventDefinition.Phase.ACTIVE) {
+            return ActionResult.failed("not_active");
+        }
+        if (!isParticipating(event, eventTag, now)) {
+            return ActionResult.failed("not_enrolled");
+        }
+        if (!isStepUnlocked(event, eventTag, index, now)) {
+            return ActionResult.failed("locked");
+        }
+        if (eventTag.isEmpty()) {
+            eventTag = newEvent(eventId);
+        }
+        completeStep(event, event.steps().get(index), newStep(stepId), eventTag, player, now);
+        data.putEvent(player, eventId, eventTag);
+        data.putReceipt(player, requestId, "ok");
+        return ActionResult.ok();
     }
 
     static int recordArrival(EventSavedData data, UUID player, EventDefinitions definitions, Instant now,
@@ -608,6 +627,38 @@ final class EventEngine {
         return removed;
     }
 
+    static void preserveUnlocks(EventDefinitions previous, EventDefinitions next, EventSavedData data, Instant now) {
+        for (TimedEventDefinition event : previous.enabledEvents()) {
+            TimedEventDefinition replacement = next.event(event.id());
+            if (replacement == null || !replacement.enabled()) {
+                continue;
+            }
+            for (int index = 0; index < event.steps().size(); index++) {
+                EventStep step = event.steps().get(index);
+                int nextIndex = replacement.stepIndex(step.id());
+                if (nextIndex < 0 || event.requirements(index).equals(replacement.requirements(nextIndex))) {
+                    continue;
+                }
+                for (UUID player : data.playerIds()) {
+                    CompoundTag eventTag = data.event(player, event.id());
+                    if (eventTag.isEmpty() || !isStepUnlocked(event, eventTag, index, now)
+                            || isStepUnlocked(replacement, eventTag, nextIndex, now)) {
+                        continue;
+                    }
+                    CompoundTag steps = eventTag.getCompound("steps");
+                    CompoundTag stepTag = steps.getCompound(step.id().toString());
+                    if (stepTag.isEmpty()) {
+                        stepTag = newStep(step.id());
+                    }
+                    stepTag.putBoolean("carriedUnlock", true);
+                    steps.put(step.id().toString(), stepTag);
+                    eventTag.put("steps", steps);
+                    data.putEvent(player, event.id(), eventTag);
+                }
+            }
+        }
+    }
+
     static void reconcileThresholds(EventDefinitions definitions, EventSavedData data, Instant now) {
         for (UUID player : data.playerIds()) {
             for (TimedEventDefinition event : definitions.enabledEvents()) {
@@ -622,19 +673,17 @@ final class EventEngine {
                 boolean changed = false;
                 for (int index = 0; index < event.steps().size(); index++) {
                     if (!isStepUnlocked(event, eventTag, index, now)) {
-                        break;
+                        continue;
                     }
                     EventStep step = event.steps().get(index);
                     CompoundTag stepTag = steps.getCompound(step.id().toString());
-                    if (stepTag.isEmpty() || stepTag.getBoolean("completed")) {
+                    if (step.click() || stepTag.isEmpty() || stepTag.getBoolean("completed")) {
                         continue;
                     }
                     if (complete(step, stepTag.getCompound("progress"))) {
                         completeStep(event, step, stepTag, eventTag, player, now);
                         steps.put(step.id().toString(), stepTag);
                         changed = true;
-                    } else {
-                        break;
                     }
                 }
                 if (changed) {

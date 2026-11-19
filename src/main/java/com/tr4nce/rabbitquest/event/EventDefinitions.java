@@ -162,7 +162,27 @@ public final class EventDefinitions {
         EventStep.LockedVisibility visibility = EventStep.LockedVisibility.parse(
                 string(json, "lockedVisibility", EventStep.LockedVisibility.TITLE_AND_CONDITION.name(),
                         id + " lockedVisibility"));
-        JsonArray targetArray = array(json, "targets", id + " targets");
+        String completion = string(json, "completion", "TARGETS", id + " completion");
+        boolean click = "CLICK".equals(completion);
+        if (!click && !"TARGETS".equals(completion)) {
+            throw new EventConfigException("Step " + id + " has invalid completion " + completion);
+        }
+        List<ResourceLocation> requires = null;
+        if (json.has("requires")) {
+            requires = new ArrayList<>();
+            for (JsonElement element : array(json, "requires", id + " requires")) {
+                if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+                    throw new EventConfigException("Step " + id + " requires entry must be a step ID");
+                }
+                ResourceLocation required = ResourceLocation.tryParse(element.getAsString());
+                if (required == null) {
+                    throw new EventConfigException("Step " + id + " has invalid requires entry " + element);
+                }
+                requires.add(required);
+            }
+        }
+        String stage = string(json, "stage", "", id + " stage");
+        JsonArray targetArray = click && !json.has("targets") ? new JsonArray() : array(json, "targets", id + " targets");
         List<WeeklyTarget> targets = new ArrayList<>();
         for (JsonElement element : targetArray) {
             if (!element.isJsonObject()) {
@@ -172,7 +192,7 @@ public final class EventDefinitions {
         }
         WeeklyReward reward = json.has("reward") ? parseReward(object(json, "reward", id + " reward")) : null;
         return new EventStep(id, name, nameKey, description, descriptionKey, unlockCondition, unlockConditionKey,
-                visibility, targets, reward);
+                visibility, targets, reward, requires, click, stage);
     }
 
     private static WeeklyTarget parseTarget(JsonObject json, ResourceLocation stepId) {
