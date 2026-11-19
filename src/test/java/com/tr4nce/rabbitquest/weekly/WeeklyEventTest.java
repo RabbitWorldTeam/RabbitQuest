@@ -146,6 +146,25 @@ class WeeklyEventTest {
         assertTrue(taskTag(data, task).getBoolean("completed"));
     }
 
+    @Test
+    void openingTheSameLogicalChestAgainDoesNotAdvanceItsCompletedTarget() {
+        ResourceLocation chest = ResourceLocation.parse("rabbitquest:harbor_cache");
+        WeeklyTaskDefinition task = task("rabbitquest:treasure_hunt", null,
+                new WeeklyTarget(ResourceLocation.parse("rabbitquest:harbor"), TargetKind.OPEN_RABBIT_CHEST,
+                        chest, 1, OVERWORLD, null),
+                new WeeklyTarget(ResourceLocation.parse("rabbitquest:other"), TargetKind.OPEN_RABBIT_CHEST,
+                        ResourceLocation.parse("rabbitquest:other_cache"), 1, OVERWORLD, null));
+        WeeklyDefinitions definitions = definitions(task, null);
+        WeeklySavedData data = new WeeklySavedData();
+
+        assertEquals(0, record(data, definitions, TargetKind.OPEN_RABBIT_CHEST, chest, 1.0, NETHER));
+        assertEquals(1, record(data, definitions, TargetKind.OPEN_RABBIT_CHEST, chest, 1.0, OVERWORLD));
+        assertEquals(0, WeeklyEngine.record(data, PLAYER, definitions, WEEK, TargetKind.OPEN_RABBIT_CHEST,
+                chest, 1.0, OVERWORLD, new Vec3(80, 70, 4), null, 2L));
+        assertEquals(1.0, progress(data, task, "rabbitquest:harbor"));
+        assertFalse(taskTag(data, task).getBoolean("completed"));
+    }
+
     private static int record(WeeklySavedData data, WeeklyDefinitions definitions, TargetKind kind,
                               ResourceLocation resource, double amount, ResourceLocation dimension) {
         return WeeklyEngine.record(data, PLAYER, definitions, WEEK, kind, resource, amount, dimension,

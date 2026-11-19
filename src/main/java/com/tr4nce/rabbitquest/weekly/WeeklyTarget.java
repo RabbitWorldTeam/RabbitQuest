@@ -22,6 +22,9 @@ public record WeeklyTarget(ResourceLocation id, TargetKind kind, ResourceLocatio
         if (amount <= 0) {
             throw new WeeklyConfigException("Target " + id + " must have a positive amount");
         }
+        if (kind == TargetKind.OPEN_RABBIT_CHEST && (resource == null || amount != 1)) {
+            throw new WeeklyConfigException("OPEN_RABBIT_CHEST target " + id + " requires a chest ID and amount 1");
+        }
         if (kind == TargetKind.TRAVEL && resource != null) {
             throw new WeeklyConfigException("TRAVEL target " + id + " does not accept a resource");
         }

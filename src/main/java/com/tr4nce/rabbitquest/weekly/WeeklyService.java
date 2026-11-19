@@ -1,5 +1,7 @@
 package com.tr4nce.rabbitquest.weekly;
 
+import com.tr4nce.rabbitquest.block.RabbitChest;
+import net.minecraft.core.BlockPos;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.tr4nce.rabbitquest.network.QuestBookNetwork;
@@ -381,6 +383,38 @@ public final class WeeklyService {
             snapshot.putString("requestId", requestId);
         }
         WeeklyNetwork.send(player, snapshot);
+    }
+
+    public static void chestTargets(ServerPlayer player, BlockPos pos, ListTag rows) {
+        Runtime current = runtime;
+        if (current == null || current.server() != player.getServer()) {
+            return;
+        }
+        LocalDate week = current.definitions().cycle().start(Instant.now());
+        for (WeeklyTaskDefinition task : current.definitions().ordinaryTasks()) {
+            chestTask(player, pos, rows, current, week, task, null, true);
+        }
+        EngineeringOrder active = WeeklyEngine.activeOrder(current.definitions(), current.data(), week);
+        for (EngineeringOrder order : current.definitions().enabledOrders()) {
+            WeeklyTaskDefinition task = current.definitions().task(order.task());
+            if (task != null && task.enabled()) {
+                chestTask(player, pos, rows, current, week, task, order, order.equals(active));
+            }
+        }
+    }
+
+    private static void chestTask(ServerPlayer player, BlockPos pos, ListTag rows, Runtime current,
+                                  LocalDate week, WeeklyTaskDefinition task, EngineeringOrder order, boolean active) {
+        CompoundTag progress = current.data().task(player.getUUID(), week.toString(), task.id()).getCompound("progress");
+        Component title = order == null
+                ? Component.translatable("rabbitquest.chest.weekly").append(" / ")
+                : Component.translatable("rabbitquest.chest.order").append(" / ")
+                        .append(RabbitChest.title(order.name(), order.nameKey())).append(" / ");
+        title = title.copy().append(RabbitChest.title(task.name(), task.nameKey()));
+        for (WeeklyTarget target : task.targets()) {
+            String status = !active ? "inactive" : progress(target, progress) >= target.amount() ? "counted" : "ready";
+            RabbitChest.addTarget(player, pos, rows, target, title, status);
+        }
     }
 
     static CompoundTag snapshot(Runtime current, UUID playerId, String playerName, boolean open,

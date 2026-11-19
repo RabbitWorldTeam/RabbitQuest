@@ -8,6 +8,7 @@ public enum TargetKind {
     CRAFT,
     FISH,
     TRAVEL,
+    OPEN_RABBIT_CHEST,
     KILL,
     DAMAGE,
     ARRIVAL,

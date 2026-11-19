@@ -1,5 +1,7 @@
 package com.tr4nce.rabbitquest;
 
+import com.tr4nce.rabbitquest.block.RabbitChest;
+import com.tr4nce.rabbitquest.network.ChestNetwork;
 import com.tr4nce.rabbitquest.config.ReloadService;
 import com.tr4nce.rabbitquest.event.EventService;
 import com.tr4nce.rabbitquest.item.VoucherItems;
@@ -25,6 +27,8 @@ public final class RabbitQuest {
 
     public RabbitQuest(IEventBus modEventBus) {
         VoucherItems.register(modEventBus);
+        RabbitChest.register(modEventBus);
+        modEventBus.addListener(ChestNetwork::register);
         modEventBus.addListener(ShopNetwork::register);
         modEventBus.addListener(WeeklyNetwork::register);
         modEventBus.addListener(EventNetwork::register);

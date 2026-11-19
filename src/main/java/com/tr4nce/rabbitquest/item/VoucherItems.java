@@ -1,6 +1,7 @@
 package com.tr4nce.rabbitquest.item;
 
 import com.tr4nce.rabbitquest.RabbitQuest;
+import com.tr4nce.rabbitquest.block.RabbitChest;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
@@ -29,6 +30,7 @@ public final class VoucherItems {
                     .icon(() -> new ItemStack(QUEST_BOOK.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(QUEST_BOOK.get());
+                        output.accept(RabbitChest.ITEM.get());
                         output.accept(BUILDING_MATERIAL_VOUCHER.get());
                         output.accept(WEAPON_TOOL_VOUCHER.get());
                     })

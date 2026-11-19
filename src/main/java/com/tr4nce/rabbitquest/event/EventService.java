@@ -1,5 +1,7 @@
 package com.tr4nce.rabbitquest.event;
 
+import com.tr4nce.rabbitquest.block.RabbitChest;
+import net.minecraft.core.BlockPos;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.tr4nce.rabbitquest.network.EventNetwork;
@@ -408,6 +410,38 @@ public final class EventService {
             snapshot.putString("requestId", requestId);
         }
         return snapshot;
+    }
+
+    public static void chestTargets(ServerPlayer player, BlockPos pos, ListTag rows) {
+        Runtime current = runtime;
+        if (current == null || current.server() != player.getServer()) {
+            return;
+        }
+        Instant now = Instant.now();
+        for (TimedEventDefinition event : current.definitions().enabledEvents()) {
+            CompoundTag data = current.data().event(player.getUUID(), event.id());
+            for (int index = 0; index < event.steps().size(); index++) {
+                EventStep step = event.steps().get(index);
+                CompoundTag progress = data.getCompound("steps").getCompound(step.id().toString())
+                        .getCompound("progress");
+                Component title = Component.translatable("rabbitquest.chest.events").append(" / ")
+                        .append(RabbitChest.title(event.name(), event.nameKey())).append(" / ")
+                        .append(RabbitChest.title(step.name(), step.nameKey()));
+                for (WeeklyTarget target : step.targets()) {
+                    String status;
+                    if (progress(target, progress) >= target.amount()) {
+                        status = "counted";
+                    } else if (event.phase(now) != TimedEventDefinition.Phase.ACTIVE) {
+                        status = event.phase(now).name().toLowerCase(java.util.Locale.ROOT);
+                    } else if (!EventEngine.isParticipating(event, data, now)) {
+                        status = "not_enrolled";
+                    } else {
+                        status = EventEngine.isStepUnlocked(event, data, index, now) ? "ready" : "locked";
+                    }
+                    RabbitChest.addTarget(player, pos, rows, target, title, status);
+                }
+            }
+        }
     }
 
     private static CompoundTag eventSnapshot(EventSavedData data, UUID playerId, TimedEventDefinition event,

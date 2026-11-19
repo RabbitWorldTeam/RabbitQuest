@@ -88,7 +88,7 @@
         "id": { "$ref": "#/$defs/resourceId" },
         "kind": {
           "type": "string",
-          "enum": ["DELIVER", "HARVEST", "KILL", "DAMAGE", "ARRIVAL", "CUSTOM", "CRAFT", "FISH", "TRAVEL"]
+          "enum": ["DELIVER", "HARVEST", "KILL", "DAMAGE", "ARRIVAL", "CUSTOM", "CRAFT", "FISH", "TRAVEL", "OPEN_RABBIT_CHEST"]
         },
         "matureOnly": { "type": "boolean", "default": false },
         "resource": { "$ref": "#/$defs/resourceId" },
