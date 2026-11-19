@@ -463,7 +463,7 @@ public final class EventService {
         }
     }
 
-    private static CompoundTag eventSnapshot(EventSavedData data, UUID playerId, TimedEventDefinition event,
+    static CompoundTag eventSnapshot(EventSavedData data, UUID playerId, TimedEventDefinition event,
                                              Instant now) {
         CompoundTag eventTag = data.event(playerId, event.id());
         TimedEventDefinition.Phase phase = event.phase(now);
@@ -496,7 +496,8 @@ public final class EventService {
             }
             boolean unlocked = EventEngine.isStepUnlocked(event, eventTag, index, now);
             boolean claimed = stepTag.getBoolean("claimed");
-            boolean claimable = completed && !claimed
+            CompoundTag frozenReward = stepTag.getCompound("reward");
+            boolean claimable = completed && !claimed && !frozenReward.isEmpty()
                     && (phase == TimedEventDefinition.Phase.ACTIVE || phase == TimedEventDefinition.Phase.CLAIM_ONLY);
 
             CompoundTag stepRow = new CompoundTag();
@@ -551,9 +552,8 @@ public final class EventService {
                     targets.add(targetTag);
                 }
                 stepRow.put("targets", targets);
-                if (step.reward() != null) {
-                    CompoundTag reward = stepTag.contains("reward", Tag.TAG_COMPOUND)
-                            ? stepTag.getCompound("reward").copy() : step.reward().save();
+                if (!frozenReward.isEmpty() || step.reward() != null) {
+                    CompoundTag reward = !frozenReward.isEmpty() ? frozenReward.copy() : step.reward().save();
                     stepRow.put("reward", reward);
                     stepRow.putString("rewardMode", reward.getString("mode"));
                     stepRow.putInt("selection", stepTag.contains("selection") ? stepTag.getInt("selection") : 0);

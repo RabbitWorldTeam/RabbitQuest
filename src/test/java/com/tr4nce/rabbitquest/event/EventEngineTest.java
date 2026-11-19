@@ -4,6 +4,7 @@ import com.tr4nce.rabbitquest.weekly.TargetKind;
 import com.tr4nce.rabbitquest.weekly.WeeklyReward;
 import com.tr4nce.rabbitquest.weekly.WeeklyTarget;
 import net.minecraft.core.NonNullList;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -97,6 +98,10 @@ class EventEngineTest {
                 "premature", event, finish).outcome());
         assertEquals("ok", EventEngine.clickStep(data, player, definitions, ACTIVE, "intro", event, intro).outcome());
         assertEquals("ok", EventEngine.clickStep(data, player, definitions, ACTIVE, "intro", event, intro).outcome());
+        var introSnapshot = EventService.eventSnapshot(data, player, definitions.event(event), ACTIVE)
+                .getList("steps", Tag.TAG_COMPOUND).getCompound(0);
+        assertTrue(introSnapshot.getBoolean("completed"));
+        assertFalse(introSnapshot.getBoolean("claimable"));
         assertEquals("already_completed", EventEngine.clickStep(data, player, definitions, ACTIVE,
                 "different", event, intro).outcome());
         assertEquals(2, EventEngine.record(data, player, definitions, ACTIVE,
@@ -154,6 +159,10 @@ class EventEngineTest {
         // Complete Step 2 during ACTIVE -> step 2 & completion become claimable
         assertEquals(2, EventEngine.record(data, player, definitions, ACTIVE, TargetKind.KILL,
                 ZOMBIE, 2, OVERWORLD, Vec3.ZERO, inventory));
+
+        var claimableStep = EventService.eventSnapshot(data, player, event, CLAIM_ONLY)
+                .getList("steps", Tag.TAG_COMPOUND).getCompound(0);
+        assertTrue(claimableStep.getBoolean("claimable"));
 
         // After endAt (CLAIM_ONLY): cannot record/deliver, but CAN claim step and completion rewards
         String stepClaimId = UUID.randomUUID().toString();
