@@ -43,6 +43,15 @@ jobs:
           fi
           jar="rabbitquest-$minecraft-neoforge-$version.jar"
           test -s "build/libs/$jar"
+          notes="$RUNNER_TEMP/rabbitquest-release-notes.md"
+          awk -v version="$version" '
+            /^## / { if (found) exit; found = ($0 == "## " version); next }
+            found { print }
+          ' CHANGELOG.md > "$notes"
+          if ! grep -q '[^[:space:]]' "$notes"; then
+            echo "::error::CHANGELOG.md must contain notes under ## $version."
+            exit 1
+          fi
           tag="v$version"
           ref="refs/tags/$tag"
 
@@ -61,7 +70,7 @@ jobs:
           if release=$(gh release view "$tag" --json isDraft,assets 2>/dev/null); then
             if jq -e '.isDraft' <<< "$release" > /dev/null; then
               gh release upload "$tag" "build/libs/$jar" --clobber
-              gh release edit "$tag" --draft=false
+              gh release edit "$tag" --notes-file "$notes" --draft=false
             elif jq -e --arg jar "$jar" '.assets | any(.name == $jar)' <<< "$release" > /dev/null; then
               echo "$tag is already published with $jar."
             else
@@ -69,5 +78,5 @@ jobs:
               exit 1
             fi
           else
-            gh release create "$tag" "build/libs/$jar" --verify-tag --title "$tag" --generate-notes
+            gh release create "$tag" "build/libs/$jar" --verify-tag --title "$tag" --notes-file "$notes"
           fi
