@@ -6,15 +6,19 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ShopPresetsTest {
@@ -22,41 +26,57 @@ class ShopPresetsTest {
             RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
 
     @Test
-    void installsWeaponAndAllStainedGlassShopsAndSupportsPurchases() {
+    void materialsPresetPreservesEditsAndTradesExactlyTenStacks(@TempDir Path folder) throws java.io.IOException {
         ShopSavedData data = new ShopSavedData();
-        int count = ShopPresets.install(data, REGISTRIES, ShopPresets.Target.ALL);
-        assertEquals(19, count);
-        assertNotNull(ShopSavedData.find(data.categories, "rabbitquest:weapon_shop"));
-        assertNotNull(ShopSavedData.find(data.categories, "rabbitquest:glass_shop"));
-        assertNotNull(ShopSavedData.find(data.products, "rabbitquest:weapon_netherite_sword"));
-        assertNotNull(ShopSavedData.find(data.products, "rabbitquest:weapon_netherite_axe"));
-        assertNotNull(ShopSavedData.find(data.products, "rabbitquest:weapon_netherite_choice"));
-        assertNotNull(ShopSavedData.find(data.products, "rabbitquest:glass_white"));
-        assertNotNull(ShopSavedData.find(data.products, "rabbitquest:glass_black"));
+        assertEquals(197, ShopPresets.installMaterials(data, REGISTRIES));
+        assertEquals(7, data.categories.size());
+        for (Tag tag : data.products) {
+            CompoundTag product = (CompoundTag) tag;
+            var cost = product.getList("costs", Tag.TAG_COMPOUND).getCompound(0);
+            assertEquals(1, cost.getInt("count"));
+            assertEquals("rabbitquest:building_material_voucher", cost.getCompound("item").getString("id"));
+            var reward = product.getList("options", Tag.TAG_COMPOUND).getCompound(0)
+                    .getList("items", Tag.TAG_COMPOUND).getCompound(0);
+            assertEquals(640, reward.getInt("rewardCount"));
+            assertTrue(product.getBoolean("batch"));
+        }
+
+        Path saveFile = folder.resolve("rabbitquest_shop.dat");
+        CompoundTag root = new CompoundTag();
+        root.put("data", data.save(new CompoundTag(), REGISTRIES));
+        NbtUtils.addCurrentDataVersion(root);
+        NbtIo.writeCompressed(root, saveFile);
+        data = ShopSavedData.load(NbtIo.readCompressed(saveFile, net.minecraft.nbt.NbtAccounter.unlimitedHeap())
+                .getCompound("data"), REGISTRIES);
+
+        var product = ShopSavedData.find(data.products, "rabbitquest:materials_blue_concrete");
+        product.putString("name", "管理员自定义名称");
+        long revision = data.revision;
+        assertEquals(0, ShopPresets.installMaterials(data, REGISTRIES));
+        assertEquals("管理员自定义名称", product.getString("name"));
+        assertEquals(revision, data.revision);
 
         NonNullList<ItemStack> inventory = NonNullList.withSize(36, ItemStack.EMPTY);
-        inventory.set(0, new ItemStack(VoucherItems.WEAPON_TOOL_VOUCHER.get(), 2));
-        inventory.set(1, new ItemStack(VoucherItems.BUILDING_MATERIAL_VOUCHER.get(), 2));
+        inventory.set(0, new ItemStack(VoucherItems.BUILDING_MATERIAL_VOUCHER.get(), 1));
+        CompoundTag request = new CompoundTag();
+        request.putString("id", product.getString("id"));
+        request.putLong("version", product.getLong("version"));
+        request.putInt("amount", 1);
+        request.putInt("option", 0);
+        NonNullList<ItemStack> crowded = NonNullList.withSize(36, ItemStack.EMPTY);
+        crowded.set(0, new ItemStack(VoucherItems.BUILDING_MATERIAL_VOUCHER.get(), 1));
+        for (int slot = 1; slot <= 27; slot++) {
+            crowded.set(slot, new ItemStack(Items.DIRT, 64));
+        }
+        assertEquals("inventory_full", ShopService.buy(data, UUID.randomUUID().toString(), request,
+                UUID.randomUUID().toString(), Instant.now(), REGISTRIES, crowded));
+        assertEquals(1, crowded.getFirst().getCount());
+        assertTrue(crowded.getFirst().is(VoucherItems.BUILDING_MATERIAL_VOUCHER.get()));
 
-        // Buy Netherite Axe via choice option 1
-        CompoundTag choiceReq = new CompoundTag();
-        choiceReq.putString("id", "rabbitquest:weapon_netherite_choice");
-        choiceReq.putLong("version", ShopSavedData.find(data.products, "rabbitquest:weapon_netherite_choice").getLong("version"));
-        choiceReq.putInt("amount", 1);
-        choiceReq.putInt("option", 1);
-        assertEquals("ok", ShopService.buy(data, UUID.randomUUID().toString(), choiceReq,
+        assertEquals("ok", ShopService.buy(data, UUID.randomUUID().toString(), request,
                 UUID.randomUUID().toString(), Instant.now(), REGISTRIES, inventory));
-        assertTrue(inventory.stream().anyMatch(s -> s.is(Items.NETHERITE_AXE)));
-
-        // Bulk buy 2 stacks (128) of cyan stained glass
-        CompoundTag glassReq = new CompoundTag();
-        glassReq.putString("id", "rabbitquest:glass_cyan");
-        glassReq.putLong("version", ShopSavedData.find(data.products, "rabbitquest:glass_cyan").getLong("version"));
-        glassReq.putInt("amount", 2);
-        glassReq.putInt("option", 0);
-        assertEquals("ok", ShopService.buy(data, UUID.randomUUID().toString(), glassReq,
-                UUID.randomUUID().toString(), Instant.now(), REGISTRIES, inventory));
-        assertEquals(128, inventory.stream().filter(s -> s.is(Items.CYAN_STAINED_GLASS))
-                .mapToInt(ItemStack::getCount).sum());
+        long stacks = inventory.stream().filter(stack -> stack.is(Items.BLUE_CONCRETE) && stack.getCount() == 64).count();
+        assertEquals(10, stacks);
+        assertTrue(inventory.stream().noneMatch(stack -> stack.is(VoucherItems.BUILDING_MATERIAL_VOUCHER.get())));
     }
 }

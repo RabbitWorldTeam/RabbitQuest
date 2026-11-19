@@ -43,25 +43,18 @@ public final class ShopService {
                 })
                 .then(Commands.literal("shop")
                         .then(Commands.literal("preset").requires(source -> source.hasPermission(2))
-                                .then(Commands.literal("all")
-                                        .executes(context -> installPreset(context.getSource(),
-                                                ShopPresets.Target.ALL)))
-                                .then(Commands.literal("weapons")
-                                        .executes(context -> installPreset(context.getSource(),
-                                                ShopPresets.Target.WEAPONS)))
-                                .then(Commands.literal("glass")
-                                        .executes(context -> installPreset(context.getSource(),
-                                                ShopPresets.Target.GLASS))))));
+                                .then(Commands.literal("materials")
+                                        .executes(context -> installMaterials(context.getSource()))))));
     }
 
-    private static int installPreset(net.minecraft.commands.CommandSourceStack source, ShopPresets.Target target) {
+    private static int installMaterials(net.minecraft.commands.CommandSourceStack source) {
         MinecraftServer server = source.getServer();
         ShopSavedData data = ShopSavedData.get(server);
         if (data == null) {
             source.sendFailure(Component.translatable(RESPONSE_PREFIX + "storage"));
             return 0;
         }
-        int count = ShopPresets.install(data, server.registryAccess(), target);
+        int count = ShopPresets.installMaterials(data, server.registryAccess());
         push(server, data, null);
         source.sendSuccess(() -> Component.translatable("rabbitquest.shop.preset.ok", count), true);
         return 1;
