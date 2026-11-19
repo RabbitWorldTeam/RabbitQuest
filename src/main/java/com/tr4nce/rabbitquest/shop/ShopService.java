@@ -25,7 +25,7 @@ import java.util.UUID;
 public final class ShopService {
     private static final String RESPONSE_PREFIX = "rabbitquest.shop.result.";
     // Leave room for per-player fields and the network payload envelope.
-    private static final int MAX_CATALOG_BYTES = 480 * 1024;
+    private static final int MAX_CATALOG_BYTES = 1024 * 1024;
 
     private ShopService() {}
 
