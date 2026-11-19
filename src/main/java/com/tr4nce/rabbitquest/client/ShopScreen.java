@@ -300,9 +300,11 @@ final class ShopScreen extends Screen {
             if (!product.getBoolean("enabled")) {
                 continue;
             }
-            String text = (product.getString("name") + " " + product.getString("description") + " "
+            String title = product.getString("name");
+            String text = (title + " " + product.getString("description") + " "
                     + product.getString("id")).toLowerCase(Locale.ROOT);
-            if (!searching || Arrays.stream(terms).allMatch(text::contains)) {
+            if (!searching || Arrays.stream(terms)
+                    .allMatch(term -> text.contains(term) || JeCharactersSearch.matchesTitle(title, term))) {
                 productsByCategory.computeIfAbsent(product.getString("category"), key -> new ArrayList<>()).add(product);
             }
         }
